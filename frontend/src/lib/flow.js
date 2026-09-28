@@ -2,7 +2,7 @@ import gsap from "gsap";
 import { anim, initAnim, rig, framingFor } from "@/lib/anim";
 import { buildCity } from "@/lib/cityMath";
 import { useStore, ambientCity } from "@/store";
-import { startAnalysis, getStatus, getResult } from "@/lib/api";
+import { startAnalysis, getStatus, getResult, isTransientError } from "@/lib/api";
 
 export const lenisRef = { current: null };
 
@@ -51,13 +51,29 @@ export async function submitRepo(url) {
     jobId = res.job_id;
     useStore.getState().set({ jobId, stages: res.stages || [] });
     let status = res;
+    const deadline = Date.now() + 5 * 60 * 1000;
+    let consecutiveNetworkFailures = 0;
     while (status.status === "running") {
-      await sleep(650);
-      status = await getStatus(jobId);
-      useStore.getState().set({ stages: status.stages });
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw new Error("Analysis timed out after 5 minutes. Please try again.");
+      const interval = consecutiveNetworkFailures
+        ? Math.min(650 * (2 ** Math.min(consecutiveNetworkFailures - 1, 3)), 4000)
+        : 650;
+      await sleep(Math.min(interval, remaining));
+      try {
+        status = await getStatus(jobId, Math.max(1, deadline - Date.now()));
+        consecutiveNetworkFailures = 0;
+        useStore.getState().set({ stages: status.stages || [] });
+      } catch (error) {
+        if (!isTransientError(error)) throw error;
+        consecutiveNetworkFailures += 1;
+      }
     }
     if (status.status === "error") throw new Error(status.error || "Analysis failed");
-    const data = await getResult(jobId);
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error("Analysis timed out after 5 minutes. Please try again.");
+    const data = await getResult(jobId, remaining);
+    window.history.replaceState(null, "", `/city/${encodeURIComponent(jobId)}`);
     await new Promise((r) => (sink.progress() >= 1 ? r() : sink.eventCallback("onComplete", r)));
     revealCity(buildCity(data));
   } catch (e) {
@@ -83,7 +99,8 @@ export function revealCity(city) {
 
 export function returnToLanding() {
   const store = useStore.getState();
-  store.set({ mode: "transition", error: null, selected: -1, hovered: -1, playing: false, snapshot: -1, stages: [] });
+  window.history.replaceState(null, "", "/");
+  store.set({ mode: "transition", jobId: null, error: null, selected: -1, hovered: -1, playing: false, snapshot: -1, stages: [] });
   if (rig.mode === "orbit" && rig.camera) {
     rig.pos.copy(rig.camera.position);
   }
