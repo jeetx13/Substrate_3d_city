@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useStore } from "@/store";
 import { getPreview } from "@/lib/api";
+import { selectAndFly } from "@/three/CameraRig";
+import { Hotspots } from "@/components/Hotspots";
+import { SearchBox } from "@/components/SearchBox";
 
 function fmtDate(iso) {
   if (!iso) return "unknown";
@@ -30,11 +33,31 @@ export function InfoCard() {
     return () => { live = false; };
   }, [path, jobId]);
 
-  if (mode !== "city" || !b) return null;
+  if (mode !== "city") return null;
+  if (!b) return <><Hotspots /><SearchBox /></>;
   const f = b.file;
+  const imports = selected >= 0
+    ? [...new Set(city.roads.filter((road) => road.src === selected).map((road) => road.tgt))].slice(0, 5)
+    : [];
+  const importedBy = selected >= 0
+    ? [...new Set(city.roads.filter((road) => road.tgt === selected).map((road) => road.src))].slice(0, 5)
+    : [];
+  const relatedList = (title, ids) => (
+    <div className="min-w-0">
+      <div className="eyebrow mb-1">{title}</div>
+      {ids.length ? ids.map((fileIdx) => (
+        <button key={fileIdx} type="button" onClick={() => selectAndFly(fileIdx)} className="block w-full truncate text-left mono text-[10px] leading-5 opacity-75 hover:opacity-100" title={city.buildings[fileIdx].file.path}>
+          {city.buildings[fileIdx].file.path}
+        </button>
+      )) : <div className="mono text-[10px] opacity-50">None in this view</div>}
+    </div>
+  );
   return (
-    <aside className="overlay card fixed right-4 md:right-8 top-20 w-[min(92vw,400px)] fade-in" data-testid="building-info-card">
-      <div className="p-5">
+    <>
+      <Hotspots />
+      <SearchBox />
+    <aside className="overlay card info-card fixed right-4 md:right-8 top-20 w-[min(92vw,400px)] fade-in" data-testid="building-info-card">
+      <div className="info-card-content p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="mono text-[12px] break-all leading-snug" data-testid="info-path">{f.path}</div>
           {selected >= 0 && (
@@ -49,6 +72,12 @@ export function InfoCard() {
           <div><dt className="eyebrow">Top author</dt><dd className="m-0 mt-1 truncate" data-testid="info-author">{f.top_author || "unknown"}</dd></div>
           <div><dt className="eyebrow">Last modified</dt><dd className="m-0 mt-1" data-testid="info-modified">{fmtDate(f.last_modified)}</dd></div>
         </dl>
+        {selected >= 0 && (
+          <div className="grid grid-cols-2 gap-4 mt-5" data-testid="file-relationships">
+            {relatedList("Imports", imports)}
+            {relatedList("Imported by", importedBy)}
+          </div>
+        )}
         <div className="mt-5">
           <div className="flex justify-between eyebrow"><span>Churn</span><span className="mono" data-testid="info-churn">{f.churn_score.toFixed(2)}</span></div>
           <div className="churn-bar mt-2"><i style={{ width: `${Math.round(f.churn_score * 100)}%` }} /></div>
@@ -58,7 +87,7 @@ export function InfoCard() {
       {selected >= 0 && (
         <div className="code p-4" data-testid="code-preview">
           {!preview && "Loading preview"}
-          {preview?.error && <span style={{ color: "var(--terracotta)" }}>{preview.error}</span>}
+          {preview?.error && <span style={{ color: "#7a3d1f" }}>{preview.error}</span>}
           {preview?.lines && preview.lines.map((l, i) => (
             <div key={i}><span className="ln">{i + 1}</span>{l || " "}</div>
           ))}
@@ -68,5 +97,6 @@ export function InfoCard() {
         </div>
       )}
     </aside>
+    </>
   );
 }

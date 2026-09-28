@@ -13,11 +13,15 @@ export function Landing({ hidden }) {
   const root = useRef();
 
   useEffect(() => {
-    const lenis = new Lenis({ lerp: 0.08, smoothWheel: true, wheelMultiplier: 0.9 });
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const originalTimeScale = gsap.globalTimeline.timeScale();
+    if (prefersReducedMotion) gsap.globalTimeline.timeScale(4);
+
+    const lenis = prefersReducedMotion ? null : new Lenis({ lerp: 0.08, smoothWheel: true, wheelMultiplier: 0.9 });
     lenisRef.current = lenis;
-    lenis.on("scroll", ScrollTrigger.update);
+    if (lenis) lenis.on("scroll", ScrollTrigger.update);
     const tick = (t) => lenis.raf(t * 1000);
-    gsap.ticker.add(tick);
+    if (lenis) gsap.ticker.add(tick);
     gsap.ticker.lagSmoothing(0);
 
     const ctx = gsap.context(() => {
@@ -40,9 +44,12 @@ export function Landing({ hidden }) {
 
     return () => {
       ctx.revert();
-      gsap.ticker.remove(tick);
-      lenis.destroy();
+      if (lenis) {
+        gsap.ticker.remove(tick);
+        lenis.destroy();
+      }
       lenisRef.current = null;
+      if (prefersReducedMotion) gsap.globalTimeline.timeScale(originalTimeScale);
     };
   }, []);
 
@@ -64,17 +71,24 @@ export function Landing({ hidden }) {
 
       <section className="hero relative z-[1] min-h-screen flex items-end md:items-center px-6 md:px-12 pb-20 md:pb-0">
         <div className="hero-copy w-full max-w-[720px] md:ml-[4vw]">
-          <div className="hero-eyebrow eyebrow mb-8">A code city, built from git</div>
-          <h1 className="serif text-4xl sm:text-5xl lg:text-6xl leading-[1.02] m-0" data-testid="hero-headline">
-            <span className="h1-line"><span>Every file becomes a building.</span></span>
-            <span className="h1-line"><span>Every import becomes a road.</span></span>
-            <span className="h1-line"><span style={{ color: "var(--olive)" }}>History replays as the city grows.</span></span>
-          </h1>
-          <p className="hero-sub mt-8 mb-10 max-w-[520px] text-sm md:text-base" style={{ color: "var(--ink-soft)" }} data-testid="hero-subheadline">
-            Paste a public GitHub repository. SUBSTRATE clones it, parses the import graph, lays it out as a city, and replays the git log as buildings rising from the ground.
-          </p>
-          <div className="hero-form"><RepoInput id="hero" /></div>
+          <div className="hero-frame">
+            <div className="hero-eyebrow eyebrow mb-6">A code city, built from git</div>
+            <h1 className="hero-headline serif leading-[1.02] m-0" data-testid="hero-headline">
+              <span className="h1-line"><span>Every file becomes a building.</span></span>
+              <span className="h1-line"><span>Every import becomes a road.</span></span>
+              <span className="h1-line"><span style={{ color: "var(--olive)" }}>History replays as the city grows.</span></span>
+            </h1>
+            <p className="hero-sub mt-7 mb-0 max-w-[520px] text-sm md:text-base" style={{ color: "var(--ink-soft)" }} data-testid="hero-subheadline">
+              Paste a public GitHub repository. SUBSTRATE clones it, parses the import graph, lays it out as a city, and replays the git log as buildings rising from the ground.
+            </p>
+          </div>
+          <div className="hero-form mt-8"><RepoInput id="hero" /></div>
         </div>
+        <aside className="hero-spec mono" aria-label="City key">
+          <div>Files = buildings</div>
+          <div>Imports = roads</div>
+          <div>Commits = time</div>
+        </aside>
       </section>
 
       <section className="relative z-[1] min-h-screen flex items-center px-6 md:px-12">
@@ -115,7 +129,7 @@ export function Landing({ hidden }) {
       </section>
 
       <footer className="relative z-[1] px-6 md:px-12 pb-10 pt-24 flex flex-wrap gap-6 justify-between mono text-[11px] tracking-[0.08em]" style={{ color: "var(--warm-gray)" }}>
-        <span>Public repositories only. Up to 1,500 files per city. Clones are discarded after parsing.</span>
+        <span>Public repositories only. Up to 1,500 files per city. Clones are kept for up to an hour for file previews, then deleted.</span>
         <span className="flex gap-6"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link></span>
       </footer>
     </div>

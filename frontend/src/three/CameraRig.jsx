@@ -2,7 +2,9 @@ import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
+import gsap from "gsap";
 import { rig } from "@/lib/anim";
+import { useStore } from "@/store";
 
 const P = new THREE.Vector3();
 const T = new THREE.Vector3();
@@ -13,13 +15,45 @@ const mouse = { nx: 0, ny: 0 };          // normalized -1..1
 const parallax = { x: 0, y: 0 };         // current damped offset
 const PARALLAX_STRENGTH = 2.2;           // max world-unit shift per axis
 const PARALLAX_LERP     = 0.045;         // damping speed (lower = more lag)
+let activeCamera = null;
+let activeControls = null;
+
+export function selectAndFly(idx) {
+  const { city, set } = useStore.getState();
+  const building = city.buildings[idx];
+  const camera = activeCamera;
+  const controls = activeControls;
+  set({ selected: idx });
+  if (!building || !controls || !camera) return;
+
+  const target = controls.target.clone().set(building.x, building.h * 0.42, building.z);
+  const direction = camera.position.clone().sub(controls.target);
+  if (direction.lengthSq() < 0.001) direction.set(1, 0.7, 1);
+  direction.normalize();
+  const distance = Math.max(18, Math.min(42, camera.position.distanceTo(controls.target) * 0.32));
+  const destination = target.clone().addScaledVector(direction, distance);
+  gsap.killTweensOf(camera.position);
+  gsap.killTweensOf(controls.target);
+  const apply = () => controls.update();
+  gsap.to(camera.position, { x: destination.x, y: destination.y, z: destination.z, duration: 0.9, ease: "power2.inOut", onUpdate: apply });
+  gsap.to(controls.target, { x: target.x, y: target.y, z: target.z, duration: 0.9, ease: "power2.inOut", onUpdate: apply });
+}
 
 export function CameraRig({ mode, radius }) {
   const { camera } = useThree();
   const controls = useRef();
   const isTouch  = useRef(false);
 
-  useEffect(() => { rig.camera = camera; }, [camera]);
+  useEffect(() => {
+    rig.camera = camera;
+    activeCamera = camera;
+    return () => { rig.camera = null; activeCamera = null; activeControls = null; };
+  }, [camera]);
+
+  useEffect(() => {
+    activeControls = controls.current;
+    return () => { activeControls = null; };
+  }, [mode]);
 
   useEffect(() => {
     if (mode === "city") rig.mode = "orbit";

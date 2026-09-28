@@ -45,9 +45,9 @@ export function TimeScrubber() {
     <div className="overlay card fixed left-1/2 bottom-6 -translate-x-1/2 w-[min(92vw,760px)] fade-in px-5 pt-4 pb-3" data-testid="time-scrubber">
       <div className="flex items-end justify-between gap-6 mb-3">
         <div className="min-w-0">
-          <div className="eyebrow">{idx === n - 1 ? "Present day" : `Snapshot ${idx + 1} of ${n}`}</div>
+          <div className="canvas-text-scrim eyebrow">{idx === n - 1 ? "Present day" : `Snapshot ${idx + 1} of ${n}`}</div>
           <div className="serif text-[22px] leading-tight mt-1" data-testid="scrub-date">{fmt(snap.commit_date)}</div>
-          <div className="mono text-[11.5px] truncate mt-1" style={{ color: "var(--warm-gray)" }} data-testid="scrub-message">{snap.commit_message_summary}</div>
+          <div className="canvas-text-scrim mono text-[11.5px] truncate mt-1" data-testid="scrub-message">{snap.commit_message_summary}</div>
         </div>
         <button
           className="btn btn-ghost !h-10 !px-4"

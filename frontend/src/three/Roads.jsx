@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { anim } from "@/lib/anim";
+import { useStore } from "@/store";
 
 const dummy = new THREE.Object3D();
 // Dark asphalt charcoal — clearly distinct from the concrete ground
@@ -9,6 +10,10 @@ const C_HIGH = new THREE.Color("#454749");
 const C_LOW  = new THREE.Color("#515558");
 // Lighter curb/edge strip color
 const C_CURB = new THREE.Color("#7a7e82");
+const C_DIM = new THREE.Color("#292c2d");
+const C_CONNECTED = new THREE.Color("#a8ae97");
+const C_CURB_DIM = new THREE.Color("#3a3d3e");
+const C_CURB_CONNECTED = new THREE.Color("#c1c7ae");
 
 function smooth(a, b, x) {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -16,6 +21,7 @@ function smooth(a, b, x) {
 }
 
 export function Roads({ city }) {
+  const selected = useStore((s) => s.selected);
   const roadRef  = useRef();
   const curbRef  = useRef();
 
@@ -58,20 +64,28 @@ export function Roads({ city }) {
   useEffect(() => {
     const m = roadRef.current;
     if (!m) return;
-    segs.forEach((s, i) => m.setColorAt(i, s.low ? C_LOW : C_HIGH));
+    segs.forEach((s, i) => {
+      const connected = selected >= 0 && (s.src === selected || s.tgt === selected);
+      const color = selected < 0 ? (s.low ? C_LOW : C_HIGH) : connected ? C_CONNECTED : C_DIM;
+      m.setColorAt(i, color);
+    });
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
     m.frustumCulled = false;
-  }, [segs]);
+  }, [segs, selected]);
 
-  // Assign curb colors (all same light strip color)
+  // Keep both curb strips aligned with the selected dependency neighborhood.
   useEffect(() => {
     const m = curbRef.current;
     if (!m) return;
-    // Each road segment generates 2 curb strips (left & right edge)
-    for (let i = 0; i < segs.length * 2; i++) m.setColorAt(i, C_CURB);
+    segs.forEach((s, i) => {
+      const connected = selected >= 0 && (s.src === selected || s.tgt === selected);
+      const color = selected < 0 ? C_CURB : connected ? C_CURB_CONNECTED : C_CURB_DIM;
+      m.setColorAt(i * 2, color);
+      m.setColorAt(i * 2 + 1, color);
+    });
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
     m.frustumCulled = false;
-  }, [segs]);
+  }, [segs, selected]);
 
   const dummyCurb = useMemo(() => new THREE.Object3D(), []);
 

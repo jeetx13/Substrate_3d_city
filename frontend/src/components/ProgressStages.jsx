@@ -9,7 +9,7 @@ export function ProgressStages() {
   return (
     <div className="overlay card fixed left-6 md:left-12 bottom-10 max-w-[560px] fade-in px-6 py-5" data-testid="progress-stages">
       <div className="eyebrow mb-4">Building</div>
-      <ul className="m-0 p-0 list-none mono text-[12.5px] leading-[1.9]" style={{ color: "var(--ink)" }}>
+      <ul className="canvas-text-scrim list-scrim m-0 list-none mono text-[12.5px] leading-[1.9]">
         {stages.length === 0 && !error && (
           <li data-testid="stage-item"><i className="stage-dot live" />Contacting the parser</li>
         )}
@@ -20,7 +20,7 @@ export function ProgressStages() {
           </li>
         ))}
         {error && (
-          <li className="fade-in mt-3" style={{ color: "#8f4f2c" }} data-testid="stage-error">
+          <li className="fade-in mt-3" style={{ color: "#7a3d1f" }} data-testid="stage-error">
             <i className="stage-dot" style={{ background: "var(--terracotta)" }} />{error}
           </li>
         )}

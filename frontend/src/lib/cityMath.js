@@ -120,12 +120,22 @@ export function buildCity(payload, isAmbient = false) {
 
   const clusters = new Map();
   buildings.forEach((b) => {
-    if (!clusters.has(b.cluster)) clusters.set(b.cluster, { idx: [], cx: 0, cz: 0 });
+    if (!clusters.has(b.cluster)) clusters.set(b.cluster, { idx: [], cx: 0, cy: 0, cz: 0, name: b.cluster });
     const c = clusters.get(b.cluster);
-    c.idx.push(b.i); c.cx += b.x; c.cz += b.z;
+    c.idx.push(b.i); c.cx += b.x; c.cy += b.h; c.cz += b.z;
   });
+  const districts = [...clusters.values()]
+    .map((c) => ({
+      name: c.name === "." ? "root" : c.name.split("/").filter(Boolean).at(-1),
+      x: c.cx / c.idx.length,
+      y: c.cy / c.idx.length + 3.5,
+      z: c.cz / c.idx.length,
+      count: c.idx.length,
+    }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    .slice(0, 12);
   const groups = [...clusters.values()].map((c) => ({ idx: c.idx, dist: Math.hypot(c.cx / c.idx.length, c.cz / c.idx.length) }));
   groups.sort((a, b) => a.dist - b.dist);
 
-  return { buildings, roads, snapshots, snapTargets, groups, meta, radius, isAmbient, maxLoc };
+  return { buildings, roads, snapshots, snapTargets, groups, districts, meta, radius, isAmbient, maxLoc };
 }

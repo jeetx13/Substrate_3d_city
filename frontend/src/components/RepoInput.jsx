@@ -1,21 +1,24 @@
 import { useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { useStore } from "@/store";
 import { submitRepo } from "@/lib/flow";
 
 const GITHUB = /^(?:https?:\/\/)?(?:www\.)?github\.com\/[\w.-]+\/[\w.-]+|^[\w.-]+\/[\w.-]+$/;
 
 export function RepoInput({ id = "hero", compact = false }) {
+  const mode = useStore((s) => s.mode);
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
   const submit = (e) => {
     e.preventDefault();
+    if (mode !== "landing") return;
     const v = value.trim();
     if (!GITHUB.test(v)) { setError("Enter a public GitHub repository, like github.com/pallets/flask"); return; }
     setError("");
     submitRepo(v);
   };
   return (
-    <form onSubmit={submit} className="w-full" data-testid={`repo-form-${id}`}>
+    <form onSubmit={submit} className={`w-full${id === "footer" ? " repo-footer-panel" : ""}`} data-testid={`repo-form-${id}`}>
       <div className="flex gap-3" style={{ maxWidth: compact ? 560 : 620 }}>
         <input
           className="field"
@@ -26,11 +29,11 @@ export function RepoInput({ id = "hero", compact = false }) {
           spellCheck={false}
           autoComplete="off"
         />
-        <button className="btn" type="submit" data-testid={`repo-submit-${id}`}>
-          Build the city <ArrowRight size={15} strokeWidth={1.75} />
+        <button className="btn" type="submit" disabled={mode !== "landing"} data-testid={`repo-submit-${id}`}>
+          {mode !== "landing" ? "Building" : "Build the city"} {mode === "landing" && <ArrowRight size={15} strokeWidth={1.75} />}
         </button>
       </div>
-      <div className="mono mt-3 text-[12px]" style={{ minHeight: 18, color: error ? "var(--terracotta)" : "var(--warm-gray)" }} data-testid={`repo-hint-${id}`}>
+      <div className="mono mt-3 text-[12px]" style={{ minHeight: 18, color: error ? "#7a3d1f" : "var(--warm-gray)" }} data-testid={`repo-hint-${id}`}>
         {error || "Public repositories. Python, JavaScript and TypeScript are parsed."}
       </div>
     </form>
