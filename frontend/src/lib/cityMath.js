@@ -11,6 +11,25 @@ export function heightFor(loc, maxLoc) {
   return 1.4 + 12 * Math.pow(r, 0.75);
 }
 
+// heightFor normalizes against maxLoc, so a single outlier file (a vendored
+// bundle, a generated migration, a huge fixture) stretches the whole scale
+// and flattens everything else near the minimum height. Normalizing against
+// a high percentile instead lets real outliers clip at max height while the
+// rest of the city keeps a readable height spread.
+function percentile(sorted, p) {
+  if (sorted.length === 0) return 1;
+  const idx = (sorted.length - 1) * p;
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+export function heightNormFor(locs) {
+  const sorted = [...locs].sort((a, b) => a - b);
+  return Math.max(1, percentile(sorted, 0.95));
+}
+
 function hash(str) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
@@ -88,7 +107,7 @@ function tiersFor(language, size, seed) {
 
 export function buildCity(payload, isAmbient = false) {
   const { files, edges, snapshots = [], meta = {} } = payload;
-  const maxLoc = files.reduce((m, f) => Math.max(m, f.loc), 1);
+  const maxLoc = heightNormFor(files.map((f) => f.loc));
   const index = new Map();
   let radius = 10;
   const buildings = files.map((f, i) => {
