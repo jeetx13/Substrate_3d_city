@@ -17,12 +17,12 @@ export function Lights({ radius, hero = false }) {
   const s = Math.max(radius * 1.5, 40);
   return (
     <>
-      <hemisphereLight ref={hemi} args={["#f3ecdc", "#8b9780", 0.8]} />
+      <hemisphereLight ref={hemi} args={["#f4ead8", "#777163", 0.8]} />
       <directionalLight
         ref={sun}
         position={[radius * 1.1, radius * 0.95, radius * 0.55]}
         intensity={2.5}
-        color="#ffe2b8"
+        color="#ffedcf"
         castShadow
         shadow-mapSize={hero ? [3072, 3072] : [2048, 2048]}
         shadow-bias={-0.00035}
@@ -35,13 +35,13 @@ export function Lights({ radius, hero = false }) {
         shadow-camera-top={s}
         shadow-camera-bottom={-s}
       />
-      <directionalLight ref={fill} position={[-radius, radius * 0.5, -radius * 0.7]} intensity={0.5} color="#d9e2d3" />
+      <directionalLight ref={fill} position={[-radius, radius * 0.5, -radius * 0.7]} intensity={0.5} color="#d8d7c9" />
       {/* subtle rim light for depth — no shadow cast, negligible cost even at full city scale */}
       <directionalLight
         ref={rim}
         position={[-radius * 0.4, radius * 0.35, radius * 1.2]}
         intensity={0.3}
-        color="#cfe6ff"
+        color="#eadfc8"
       />
     </>
   );

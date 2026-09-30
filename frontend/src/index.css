@@ -39,7 +39,7 @@ button { font-family: inherit; }
 .sky {
     position: fixed; inset: 0; z-index: 0;
     /* Shifted to a cooler, darker dusk tone that sits close to the asphalt ground range */
-    background: radial-gradient(120% 90% at 50% 110%, #8a8f92 0%, #b0b5ba 45%, #c8cdd1 100%);
+    background: radial-gradient(120% 90% at 50% 110%, #8a8477 0%, #b9b1a2 45%, #d2cabc 100%);
 }
 .canvas-layer { position: fixed; inset: 0; z-index: 1; }
 .overlay { z-index: 2; }

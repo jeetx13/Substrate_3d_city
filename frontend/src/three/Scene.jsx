@@ -46,9 +46,9 @@ export function Scene() {
         camera={{ fov: 36, near: 0.5, far: R * 12 + 400, position: [50, 34, 66] }}
         gl={{ antialias: true, alpha: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.02 }}
       >
-        <fog attach="fog" args={["#e2dbcb", R * 1.1, R * 4.8 + 60]} />
+        <fog attach="fog" args={["#d5cfc2", R * 1.1, R * 4.8 + 60]} />
         <Lights radius={R} hero={mode === "landing"} />
-        <Ground radius={R} />
+        <Ground radius={R} city={city} />
         <Buildings city={city} interactive={mode === "city"} />
         <Roads city={city} />
         <CameraRig mode={mode} radius={R} />

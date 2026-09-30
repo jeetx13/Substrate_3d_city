@@ -59,6 +59,68 @@ export function clusterKey(path) {
   return parts[0];
 }
 
+const GRID_PITCH = 5.2;
+const STREET_GAP = 2.4;
+const STREET_WIDTH = 1.35;
+
+function visualGrid(files) {
+  const blockCells = files.length > 36 ? 4 : 2;
+  const groups = new Map();
+  files.forEach((file, index) => {
+    const key = clusterKey(file.path);
+    if (!groups.has(key)) groups.set(key, { key, files: [], x: 0, z: 0 });
+    const group = groups.get(key);
+    group.files.push({ file, index });
+    group.x += file.layout_x || 0;
+    group.z += file.layout_y || 0;
+  });
+  const ordered = [...groups.values()].sort((a, b) => {
+    const ay = a.z / a.files.length, by = b.z / b.files.length;
+    return ay - by || a.x / a.files.length - b.x / b.files.length || a.key.localeCompare(b.key);
+  });
+  const entries = [];
+  ordered.forEach((group) => {
+    group.files.sort((a, b) => (a.file.layout_y || 0) - (b.file.layout_y || 0)
+      || (a.file.layout_x || 0) - (b.file.layout_x || 0)
+      || String(a.file.path).localeCompare(String(b.file.path)));
+    entries.push(...group.files);
+  });
+  const cols = Math.max(1, Math.ceil(Math.sqrt(files.length)));
+  const rows = Math.ceil(files.length / cols);
+  const coord = (slot) => slot * GRID_PITCH + Math.floor(slot / blockCells) * STREET_GAP;
+  const width = cols ? coord(cols - 1) : 0;
+  const depth = rows ? coord(rows - 1) : 0;
+  const placements = new Map();
+  entries.forEach(({ index }, slot) => {
+    const row = Math.floor(slot / cols), col = slot % cols;
+    placements.set(index, {
+      x: coord(col) - width / 2,
+      z: coord(row) - depth / 2,
+      row,
+      col,
+    });
+  });
+  const xStreets = [];
+  const zStreets = [];
+  for (let col = blockCells; col < cols; col += blockCells) {
+    xStreets.push((coord(col - 1) + coord(col)) / 2 - width / 2);
+  }
+  for (let row = blockCells; row < rows; row += blockCells) {
+    zStreets.push((coord(row - 1) + coord(row)) / 2 - depth / 2);
+  }
+  const margin = GRID_PITCH * 0.5;
+  return {
+    placements,
+    blockCells,
+    gridPitch: GRID_PITCH,
+    streets: [
+      ...xStreets.map((x, i) => ({ axis: "z", x, z: 0, length: depth + margin * 2, width: STREET_WIDTH, renderWidth: STREET_WIDTH, weight: 1, low: false, boundary: (i + 1) * blockCells, blockCells })),
+      ...zStreets.map((z, i) => ({ axis: "x", x: 0, z, length: width + margin * 2, width: STREET_WIDTH, renderWidth: STREET_WIDTH, weight: 1, low: false, boundary: (i + 1) * blockCells, blockCells })),
+    ],
+    intersections: xStreets.flatMap((x) => zStreets.map((z) => ({ x, z, width: STREET_WIDTH }))),
+  };
+}
+
 // Roof silhouette varies by `seed` (not language) so buildings of the same
 // language don't all read identically at city scale: roughly a third flat,
 // a third stepped-setback, a third topped with a single offset tower.
@@ -107,6 +169,7 @@ function tiersFor(language, size, seed) {
 
 export function buildCity(payload, isAmbient = false) {
   const { files, edges, snapshots = [], meta = {} } = payload;
+  const grid = visualGrid(files);
   const maxLoc = heightNormFor(files.map((f) => f.loc));
   const index = new Map();
   let radius = 10;
@@ -115,9 +178,10 @@ export function buildCity(payload, isAmbient = false) {
     const seed = hash(f.path);
     const size = footprintSize(f.loc);
     const h = heightFor(f.loc, maxLoc);
-    radius = Math.max(radius, Math.hypot(f.layout_x, f.layout_y) + size);
+    const place = grid.placements.get(i) || { x: 0, z: 0, row: 0, col: 0 };
+    radius = Math.max(radius, Math.hypot(place.x, place.z) + size);
     return {
-      i, file: f, x: f.layout_x, z: f.layout_y, h, size, seed,
+      i, file: f, x: place.x, z: place.z, gridRow: place.row, gridCol: place.col, h, size, seed,
       tiers: tiersFor(f.language, size, seed),
       color: churnColor(f.churn_score, seed),
       cluster: clusterKey(f.path),
@@ -126,6 +190,18 @@ export function buildCity(payload, isAmbient = false) {
   const roads = edges
     .filter((e) => index.has(e.source_file_id) && index.has(e.target_file_id))
     .map((e) => ({ src: index.get(e.source_file_id), tgt: index.get(e.target_file_id), weight: e.weight, low: e.confidence === "low" }));
+  grid.streets.forEach((street) => {
+    for (const edge of roads) {
+      const a = buildings[edge.src], b = buildings[edge.tgt];
+      const ca = street.axis === "x" ? a.gridRow : a.gridCol;
+      const cb = street.axis === "x" ? b.gridRow : b.gridCol;
+      if ((ca < street.boundary && cb >= street.boundary) || (cb < street.boundary && ca >= street.boundary)) {
+        street.weight += Math.max(0, Number(edge.weight) || 1);
+        street.low = street.low || edge.low;
+      }
+    }
+    street.renderWidth = street.width * (1 + Math.min(0.3, Math.log2(Math.max(1, street.weight)) * 0.08));
+  });
 
   const snapTargets = snapshots.map((snap) => {
     const arr = new Float32Array(buildings.length);
@@ -156,5 +232,5 @@ export function buildCity(payload, isAmbient = false) {
   const groups = [...clusters.values()].map((c) => ({ idx: c.idx, dist: Math.hypot(c.cx / c.idx.length, c.cz / c.idx.length) }));
   groups.sort((a, b) => a.dist - b.dist);
 
-  return { buildings, roads, snapshots, snapTargets, groups, districts, meta, radius, isAmbient, maxLoc };
+  return { buildings, roads, streets: grid.streets, intersections: grid.intersections, blockCells: grid.blockCells, gridPitch: grid.gridPitch, snapshots, snapTargets, groups, districts, meta, radius, isAmbient, maxLoc };
 }
