@@ -70,7 +70,7 @@ export function Landing({ hidden }) {
       </header>
 
       <section className="hero relative z-[1] min-h-screen flex items-end md:items-center px-6 md:px-12 pb-20 md:pb-0">
-        <div className="hero-copy w-full max-w-[720px] md:ml-[4vw]">
+        <div className="hero-copy w-full max-w-[820px] md:ml-[2vw]">
           <div className="hero-frame">
             <div className="hero-eyebrow eyebrow mb-6">A code city, built from git</div>
             <h1 className="hero-headline serif leading-[1.02] m-0" data-testid="hero-headline">
@@ -82,7 +82,7 @@ export function Landing({ hidden }) {
               Paste a public GitHub repository. SUBSTRATE clones it, parses the import graph, lays it out as a city, and replays the git log as buildings rising from the ground.
             </p>
           </div>
-          <div className="hero-form mt-8"><RepoInput id="hero" /></div>
+          <div className="hero-form mt-6"><RepoInput id="hero" /></div>
         </div>
         <aside className="hero-spec mono" aria-label="City key">
           <div>Files = buildings</div>
