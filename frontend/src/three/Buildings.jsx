@@ -57,6 +57,13 @@ function makeBuildingGeometry() {
 // doing the actual churn/language tinting on top.
 function makeFacadeMaps() {
   const size = 256;
+  const facadeCanvas = document.createElement("canvas");
+  facadeCanvas.width = size;
+  facadeCanvas.height = size;
+  const facadeCtx = facadeCanvas.getContext("2d");
+  facadeCtx.fillStyle = "#f2eee4";
+  facadeCtx.fillRect(0, 0, size, size);
+
   const hCanvas = document.createElement("canvas");
   hCanvas.width = size;
   hCanvas.height = size;
@@ -77,12 +84,37 @@ function makeFacadeMaps() {
   const cw = size / cols;
   const rh = size / rows;
   const margin = 0.22;
+  facadeCtx.fillStyle = "#b7b4aa";
+  facadeCtx.fillRect(0, 0, size, size);
+  facadeCtx.fillStyle = "#eeeae0";
+  facadeCtx.fillRect(2, 2, size - 4, size - 4);
+  facadeCtx.strokeStyle = "rgba(52, 50, 44, 0.1)";
+  facadeCtx.lineWidth = 1;
+  for (let row = 1; row < rows; row++) {
+    const y = row * rh;
+    facadeCtx.beginPath();
+    facadeCtx.moveTo(0, y);
+    facadeCtx.lineTo(size, y);
+    facadeCtx.stroke();
+  }
+
   hctx.fillStyle = "#6c6c6c";
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const x = c * cw + cw * margin;
       const y = r * rh + rh * margin;
       hctx.fillRect(x, y, cw * (1 - margin * 2), rh * (1 - margin * 2));
+
+      const windowW = cw * (1 - margin * 2);
+      const windowH = rh * (1 - margin * 2);
+      facadeCtx.fillStyle = "#a4a49c";
+      facadeCtx.fillRect(x - 1, y - 1, windowW + 2, windowH + 2);
+      facadeCtx.fillStyle = "#647078";
+      facadeCtx.fillRect(x, y, windowW, windowH);
+      facadeCtx.fillStyle = "rgba(213, 220, 218, 0.34)";
+      facadeCtx.fillRect(x + windowW * 0.12, y + 1, Math.max(1, windowW * 0.12), windowH - 2);
+      facadeCtx.fillStyle = "rgba(27, 35, 40, 0.35)";
+      facadeCtx.fillRect(x, y + windowH * 0.58, windowW, Math.max(1, windowH * 0.12));
     }
   }
 
@@ -144,15 +176,20 @@ function makeFacadeMaps() {
   }
   rctx.putImageData(rImg, 0, 0);
 
+  const map = new THREE.CanvasTexture(facadeCanvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  map.repeat.set(1, 2);
+
   const normalMap = new THREE.CanvasTexture(normalCanvas);
   normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
-  normalMap.repeat.set(3, 5);
+  normalMap.repeat.copy(map.repeat);
 
   const roughnessMap = new THREE.CanvasTexture(roughCanvas);
   roughnessMap.wrapS = roughnessMap.wrapT = THREE.RepeatWrapping;
-  roughnessMap.repeat.set(3, 5);
+  roughnessMap.repeat.copy(map.repeat);
 
-  return { normalMap, roughnessMap };
+  return { map, normalMap, roughnessMap };
 }
 
 // Soft dark radial decal used as a cheap contact-shadow/AO cue at each
@@ -182,7 +219,7 @@ export function Buildings({ city, interactive }) {
   const hoverState = useRef({ prev: -1 });
 
   const geo = useMemo(() => makeBuildingGeometry(), []);
-  const { normalMap, roughnessMap } = useMemo(() => makeFacadeMaps(), []);
+  const { map, normalMap, roughnessMap } = useMemo(() => makeFacadeMaps(), []);
   const aoTex = useMemo(() => makeAOTexture(), []);
   const aoGeo = useMemo(() => {
     const g = new THREE.PlaneGeometry(1, 1);
@@ -329,6 +366,7 @@ export function Buildings({ city, interactive }) {
             roughness={1}
             metalness={0.02}
             color="#ffffff"
+            map={map}
             normalMap={normalMap}
             normalScale={[0.55, 0.55]}
             roughnessMap={roughnessMap}
