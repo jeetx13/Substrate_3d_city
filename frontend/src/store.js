@@ -8,6 +8,7 @@ initAnim(ambientCity.buildings.length, 0);
 
 export const useStore = create((set) => ({
   mode: "landing",
+  timeOfDay: "day",
   city: ambientCity,
   jobId: null,
   stages: [],

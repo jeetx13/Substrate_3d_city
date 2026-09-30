@@ -4,6 +4,8 @@ import * as THREE from "three";
 const dummy = new THREE.Object3D();
 const blockTones = ["#817d73", "#878379", "#7b776e", "#8a857a"];
 const sidewalkTones = ["#a7a193", "#ada797", "#a19b8e", "#b1aa9b"];
+const nightBlockTones = ["#30384a", "#343d50", "#2b3445", "#384153"];
+const nightSidewalkTones = ["#626a7a", "#697182", "#5d6678", "#70788a"];
 const sidewalkMargin = 0.34;
 const curbWidth = 0.12;
 
@@ -81,13 +83,14 @@ function environmentInstances(city) {
   return { blocks, sidewalks };
 }
 
-export function Ground({ radius, city }) {
+export function Ground({ radius, city, timeOfDay = "day" }) {
   const tex = useMemo(makeGroundTexture, []);
   const blockRef = useRef();
   const sidewalkRef = useRef();
   const instances = useMemo(() => environmentInstances(city), [city]);
   const blockGeometry = useMemo(() => new THREE.BoxGeometry(1, 0.04, 1), []);
   const sidewalkGeometry = useMemo(() => new THREE.BoxGeometry(1, 0.03, 1), []);
+  const night = timeOfDay === "night";
 
   useEffect(() => {
     const blocks = blockRef.current;
@@ -97,7 +100,7 @@ export function Ground({ radius, city }) {
         dummy.scale.set(block.w, 1, block.d);
         dummy.updateMatrix();
         blocks.setMatrixAt(i, dummy.matrix);
-        blocks.setColorAt(i, new THREE.Color(blockTones[block.tone]));
+        blocks.setColorAt(i, new THREE.Color((night ? nightBlockTones : blockTones)[block.tone]));
       });
       blocks.instanceMatrix.needsUpdate = true;
       if (blocks.instanceColor) blocks.instanceColor.needsUpdate = true;
@@ -110,19 +113,19 @@ export function Ground({ radius, city }) {
         dummy.scale.set(sidewalk.extent, 1, sidewalk.extent);
         dummy.updateMatrix();
         sidewalks.setMatrixAt(i, dummy.matrix);
-        sidewalks.setColorAt(i, new THREE.Color(sidewalkTones[sidewalk.tone]));
+        sidewalks.setColorAt(i, new THREE.Color((night ? nightSidewalkTones : sidewalkTones)[sidewalk.tone]));
       });
       sidewalks.instanceMatrix.needsUpdate = true;
       if (sidewalks.instanceColor) sidewalks.instanceColor.needsUpdate = true;
       sidewalks.frustumCulled = false;
     }
-  }, [instances]);
+  }, [instances, night]);
 
   return (
     <group>
       <mesh rotation-x={-Math.PI / 2} position-y={-0.02} receiveShadow>
         <planeGeometry args={[2400, 2400]} />
-        <meshStandardMaterial map={tex} roughness={1} metalness={0} color="#ffffff" />
+        <meshStandardMaterial map={tex} roughness={1} metalness={0} color={night ? "#647189" : "#ffffff"} />
       </mesh>
       {instances.blocks.length > 0 && (
         <instancedMesh key={`${city.meta.slug}-blocks-${instances.blocks.length}`} ref={blockRef} args={[blockGeometry, undefined, instances.blocks.length]} receiveShadow>

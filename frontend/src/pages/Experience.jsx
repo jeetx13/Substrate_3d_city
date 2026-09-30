@@ -13,6 +13,7 @@ import { TimeScrubber } from "@/components/TimeScrubber";
 
 export default function Experience() {
   const mode = useStore((s) => s.mode);
+  const timeOfDay = useStore((s) => s.timeOfDay);
   const { jobId } = useParams();
   const [routeError, setRouteError] = useState("");
 
@@ -49,7 +50,7 @@ export default function Experience() {
 
   return (
     <>
-      <div className="sky" />
+      <div className={`sky${timeOfDay === "night" ? " sky--night" : ""}`} />
       <Scene />
       <Landing hidden={Boolean(jobId) || mode !== "landing"} />
       {routeError ? (

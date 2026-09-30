@@ -9,6 +9,10 @@ const dark = new THREE.Color("#3c3a35");
 const broad = new THREE.Color("#4c4942");
 const curbColor = new THREE.Color("#b1a996");
 const connected = new THREE.Color("#85866f");
+const nightDark = new THREE.Color("#202a3b");
+const nightBroad = new THREE.Color("#29364a");
+const nightCurb = new THREE.Color("#66738a");
+const nightConnected = new THREE.Color("#8fa4ce");
 const curbWidth = 0.12;
 
 function smooth(a, b, x) {
@@ -16,7 +20,7 @@ function smooth(a, b, x) {
   return t * t * (3 - 2 * t);
 }
 
-export function Roads({ city }) {
+export function Roads({ city, timeOfDay = "day" }) {
   const selected = useStore((s) => s.selected);
   const roadRef = useRef();
   const curbRef = useRef();
@@ -36,6 +40,7 @@ export function Roads({ city }) {
   const markingGeometry = useMemo(() => new THREE.BoxGeometry(1, 0.016, 1), []);
   const streets = city.streets || [];
   const junctions = city.intersections || [];
+  const night = timeOfDay === "night";
   const curbSegments = useMemo(() => streets.flatMap((street, streetIndex) => {
     const vertical = street.axis === "z";
     const cuts = junctions
@@ -72,11 +77,15 @@ export function Roads({ city }) {
         const cb = street.axis === "x" ? b.gridRow : b.gridCol;
         return (ca < street.boundary && cb >= street.boundary) || (cb < street.boundary && ca >= street.boundary);
       });
-      roads.setColorAt(i, selected < 0 ? (street.weight > 1 ? broad : dark) : isActive ? connected : dark);
+      const roadDark = night ? nightDark : dark;
+      const roadBroad = night ? nightBroad : broad;
+      const roadConnected = night ? nightConnected : connected;
+      roads.setColorAt(i, selected < 0 ? (street.weight > 1 ? roadBroad : roadDark) : isActive ? roadConnected : roadDark);
     });
     curbSegments.forEach((_, i) => {
-      curbs.setColorAt(i * 2, curbColor);
-      curbs.setColorAt(i * 2 + 1, curbColor);
+      const curb = night ? nightCurb : curbColor;
+      curbs.setColorAt(i * 2, curb);
+      curbs.setColorAt(i * 2 + 1, curb);
     });
     if (roads.instanceColor) roads.instanceColor.needsUpdate = true;
     if (curbs.instanceColor) curbs.instanceColor.needsUpdate = true;
@@ -84,7 +93,7 @@ export function Roads({ city }) {
     curbs.frustumCulled = false;
     if (junctionRef.current) junctionRef.current.frustumCulled = false;
     if (dashRef.current) dashRef.current.frustumCulled = false;
-  }, [city, selected, streets, curbSegments]);
+  }, [city, selected, streets, curbSegments, night]);
 
   useFrame(() => {
     const roads = roadRef.current;
@@ -163,12 +172,12 @@ export function Roads({ city }) {
       </instancedMesh>
       {junctions.length > 0 && (
         <instancedMesh key={`${key}-junctions`} ref={junctionRef} args={[junctionGeometry, undefined, junctions.length]} receiveShadow>
-          <meshStandardMaterial color="#3c3a35" roughness={0.98} />
+          <meshStandardMaterial color={night ? "#313b50" : "#3c3a35"} roughness={0.98} />
         </instancedMesh>
       )}
       {dashes.length > 0 && (
         <instancedMesh key={`${key}-low-confidence`} ref={dashRef} args={[markingGeometry, undefined, dashes.length]}>
-          <meshStandardMaterial color="#c2ad82" roughness={0.9} />
+          <meshStandardMaterial color={night ? "#d9bf84" : "#c2ad82"} roughness={0.9} />
         </instancedMesh>
       )}
     </group>

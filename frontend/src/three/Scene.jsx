@@ -37,6 +37,7 @@ function ScreenshotBridge() {
 export function Scene() {
   const city = useStore((s) => s.city);
   const mode = useStore((s) => s.mode);
+  const timeOfDay = useStore((s) => s.timeOfDay);
   const R = Math.max(city.radius, 30);
   return (
     <div className="canvas-layer" data-testid="city-canvas">
@@ -46,11 +47,11 @@ export function Scene() {
         camera={{ fov: 36, near: 0.5, far: R * 12 + 400, position: [50, 34, 66] }}
         gl={{ antialias: true, alpha: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.02 }}
       >
-        <fog attach="fog" args={["#d5cfc2", R * 1.1, R * 4.8 + 60]} />
-        <Lights radius={R} hero={mode === "landing"} />
-        <Ground radius={R} city={city} />
-        <Buildings city={city} interactive={mode === "city"} />
-        <Roads city={city} />
+        <fog attach="fog" args={[timeOfDay === "night" ? "#101928" : "#d5cfc2", R * 1.1, R * 4.8 + 60]} />
+        <Lights radius={R} hero={mode === "landing"} timeOfDay={timeOfDay} />
+        <Ground radius={R} city={city} timeOfDay={timeOfDay} />
+        <Buildings city={city} interactive={mode === "city"} timeOfDay={timeOfDay} />
+        <Roads city={city} timeOfDay={timeOfDay} />
         <CameraRig mode={mode} radius={R} />
         <DistrictLabels city={city} visible={mode === "city"} />
         <ScreenshotBridge />

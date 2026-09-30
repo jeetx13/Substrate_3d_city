@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Moon, Sun } from "lucide-react";
 import { useStore } from "@/store";
 import { returnToLanding } from "@/lib/flow";
 import { Legend } from "@/components/Legend";
@@ -7,6 +8,8 @@ export function CityHud() {
   const [copied, setCopied] = useState(false);
   const mode = useStore((s) => s.mode);
   const city = useStore((s) => s.city);
+  const timeOfDay = useStore((s) => s.timeOfDay);
+  const set = useStore((s) => s.set);
   if (mode !== "city") return null;
   const m = city.meta;
   const copyLink = async () => {
@@ -31,6 +34,16 @@ export function CityHud() {
           )}
         </div>
         <div className="flex flex-col items-end gap-3">
+          <button
+            className="btn btn-ghost pointer-events-auto !h-10 !px-4 mono text-[11px] tracking-[0.12em]"
+            onClick={() => set({ timeOfDay: timeOfDay === "day" ? "night" : "day" })}
+            aria-pressed={timeOfDay === "night"}
+            aria-label={`Switch to ${timeOfDay === "day" ? "night" : "day"} lighting`}
+            data-testid="day-night-toggle"
+          >
+            {timeOfDay === "day" ? <Moon size={14} /> : <Sun size={14} />}
+            {timeOfDay === "day" ? "NIGHT" : "DAY"}
+          </button>
           <button className="btn btn-ghost pointer-events-auto !h-10 !px-4 mono text-[11px] tracking-[0.12em]" onClick={returnToLanding} data-testid="new-repo-btn">
             NEW REPOSITORY
           </button>

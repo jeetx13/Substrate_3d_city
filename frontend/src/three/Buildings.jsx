@@ -61,8 +61,12 @@ function makeFacadeMaps() {
   facadeCanvas.width = size;
   facadeCanvas.height = size;
   const facadeCtx = facadeCanvas.getContext("2d");
-  facadeCtx.fillStyle = "#f2eee4";
-  facadeCtx.fillRect(0, 0, size, size);
+  const emissiveCanvas = document.createElement("canvas");
+  emissiveCanvas.width = size;
+  emissiveCanvas.height = size;
+  const emissiveCtx = emissiveCanvas.getContext("2d");
+  emissiveCtx.fillStyle = "#000000";
+  emissiveCtx.fillRect(0, 0, size, size);
 
   const hCanvas = document.createElement("canvas");
   hCanvas.width = size;
@@ -115,6 +119,11 @@ function makeFacadeMaps() {
       facadeCtx.fillRect(x + windowW * 0.12, y + 1, Math.max(1, windowW * 0.12), windowH - 2);
       facadeCtx.fillStyle = "rgba(27, 35, 40, 0.35)";
       facadeCtx.fillRect(x, y + windowH * 0.58, windowW, Math.max(1, windowH * 0.12));
+
+      emissiveCtx.fillStyle = "#000000";
+      emissiveCtx.fillRect(x, y, windowW, windowH);
+      emissiveCtx.fillStyle = (r + c) % 4 === 0 ? "#f1c77e" : "#c78b4f";
+      emissiveCtx.fillRect(x + 2, y + 2, Math.max(1, windowW - 4), Math.max(1, windowH - 4));
     }
   }
 
@@ -181,6 +190,11 @@ function makeFacadeMaps() {
   map.wrapS = map.wrapT = THREE.RepeatWrapping;
   map.repeat.set(1, 2);
 
+  const emissiveMap = new THREE.CanvasTexture(emissiveCanvas);
+  emissiveMap.colorSpace = THREE.SRGBColorSpace;
+  emissiveMap.wrapS = emissiveMap.wrapT = THREE.RepeatWrapping;
+  emissiveMap.repeat.copy(map.repeat);
+
   const normalMap = new THREE.CanvasTexture(normalCanvas);
   normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
   normalMap.repeat.copy(map.repeat);
@@ -189,7 +203,7 @@ function makeFacadeMaps() {
   roughnessMap.wrapS = roughnessMap.wrapT = THREE.RepeatWrapping;
   roughnessMap.repeat.copy(map.repeat);
 
-  return { map, normalMap, roughnessMap };
+  return { map, emissiveMap, normalMap, roughnessMap };
 }
 
 // Soft dark radial decal used as a cheap contact-shadow/AO cue at each
@@ -211,7 +225,7 @@ function makeAOTexture() {
   return tex;
 }
 
-export function Buildings({ city, interactive }) {
+export function Buildings({ city, interactive, timeOfDay = "day" }) {
   const refs = [useRef(), useRef(), useRef()];
   const aoRef = useRef();
   const n = city.buildings.length;
@@ -219,7 +233,7 @@ export function Buildings({ city, interactive }) {
   const hoverState = useRef({ prev: -1 });
 
   const geo = useMemo(() => makeBuildingGeometry(), []);
-  const { map, normalMap, roughnessMap } = useMemo(() => makeFacadeMaps(), []);
+  const { map, emissiveMap, normalMap, roughnessMap } = useMemo(() => makeFacadeMaps(), []);
   const aoTex = useMemo(() => makeAOTexture(), []);
   const aoGeo = useMemo(() => {
     const g = new THREE.PlaneGeometry(1, 1);
@@ -367,6 +381,9 @@ export function Buildings({ city, interactive }) {
             metalness={0.02}
             color="#ffffff"
             map={map}
+            emissive={timeOfDay === "night" ? "#ffd091" : "#000000"}
+            emissiveMap={emissiveMap}
+            emissiveIntensity={timeOfDay === "night" ? 1.15 : 0}
             normalMap={normalMap}
             normalScale={[0.55, 0.55]}
             roughnessMap={roughnessMap}
