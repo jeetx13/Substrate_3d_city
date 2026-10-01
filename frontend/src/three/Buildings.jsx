@@ -55,12 +55,15 @@ function makeBuildingGeometry() {
 // Shared across every instance via texture.repeat — cheap, and keeps each
 // tier to one draw call — with per-instance vertex/instance color still
 // doing the actual churn/language tinting on top.
+// Bakes a high-fidelity architectural facade pattern (coursed masonry bands + window grid)
+// with deterministic lit/unlit office variations and warm/cool lighting.
 function makeFacadeMaps() {
-  const size = 256;
+  const size = 1024;
   const facadeCanvas = document.createElement("canvas");
   facadeCanvas.width = size;
   facadeCanvas.height = size;
   const facadeCtx = facadeCanvas.getContext("2d");
+
   const emissiveCanvas = document.createElement("canvas");
   emissiveCanvas.width = size;
   emissiveCanvas.height = size;
@@ -72,62 +75,108 @@ function makeFacadeMaps() {
   hCanvas.width = size;
   hCanvas.height = size;
   const hctx = hCanvas.getContext("2d");
-
   hctx.fillStyle = "#969696";
   hctx.fillRect(0, 0, size, size);
 
-  const courses = 16;
-  const courseH = size / courses;
-  for (let row = 0; row < courses; row++) {
-    hctx.fillStyle = row % 2 === 0 ? "#a5a5a5" : "#8c8c8c";
-    hctx.fillRect(0, row * courseH, size, courseH - 1);
-  }
+  // 4 architectural facade quadrant variations in one 1024x1024 atlas:
+  // Q0 (top-left): Modern Glass Curtain Wall with slender mullions & high reflectivity
+  // Q1 (top-right): Classic Structured Masonry with coursed stone spandrels & punched windows
+  // Q2 (bottom-left): Vertical Pier & Fluted Architectural Panels
+  // Q3 (bottom-right): Industrial Ribbon Window & Spandrel Panels
+  const quads = [
+    { x0: 0, y0: 0, w: size / 2, h: size / 2, type: "curtain_glass", cols: 10, rows: 14, marginX: 0.14, marginY: 0.18 },
+    { x0: size / 2, y0: 0, w: size / 2, h: size / 2, type: "stone_masonry", cols: 8, rows: 12, marginX: 0.22, marginY: 0.26 },
+    { x0: 0, y0: size / 2, w: size / 2, h: size / 2, type: "vertical_pier", cols: 8, rows: 14, marginX: 0.18, marginY: 0.22 },
+    { x0: size / 2, y0: size / 2, w: size / 2, h: size / 2, type: "ribbon_panel", cols: 12, rows: 10, marginX: 0.10, marginY: 0.32 },
+  ];
 
-  const cols = 6;
-  const rows = 8;
-  const cw = size / cols;
-  const rh = size / rows;
-  const margin = 0.22;
-  facadeCtx.fillStyle = "#b7b4aa";
-  facadeCtx.fillRect(0, 0, size, size);
-  facadeCtx.fillStyle = "#eeeae0";
-  facadeCtx.fillRect(2, 2, size - 4, size - 4);
-  facadeCtx.strokeStyle = "rgba(52, 50, 44, 0.1)";
-  facadeCtx.lineWidth = 1;
-  for (let row = 1; row < rows; row++) {
-    const y = row * rh;
-    facadeCtx.beginPath();
-    facadeCtx.moveTo(0, y);
-    facadeCtx.lineTo(size, y);
-    facadeCtx.stroke();
-  }
+  quads.forEach((q, qIndex) => {
+    const { x0, y0, w, h, cols, rows, marginX, marginY } = q;
+    const cw = w / cols;
+    const rh = h / rows;
 
-  hctx.fillStyle = "#6c6c6c";
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const x = c * cw + cw * margin;
-      const y = r * rh + rh * margin;
-      hctx.fillRect(x, y, cw * (1 - margin * 2), rh * (1 - margin * 2));
+    // Base architectural wall tone (neutral stone/panel foundation)
+    facadeCtx.fillStyle = qIndex === 0 ? "#b8bdc4" : qIndex === 1 ? "#a4a8ad" : qIndex === 2 ? "#b0b4b8" : "#989da3";
+    facadeCtx.fillRect(x0, y0, w, h);
 
-      const windowW = cw * (1 - margin * 2);
-      const windowH = rh * (1 - margin * 2);
-      facadeCtx.fillStyle = "#a4a49c";
-      facadeCtx.fillRect(x - 1, y - 1, windowW + 2, windowH + 2);
-      facadeCtx.fillStyle = "#647078";
-      facadeCtx.fillRect(x, y, windowW, windowH);
-      facadeCtx.fillStyle = "rgba(213, 220, 218, 0.34)";
-      facadeCtx.fillRect(x + windowW * 0.12, y + 1, Math.max(1, windowW * 0.12), windowH - 2);
-      facadeCtx.fillStyle = "rgba(27, 35, 40, 0.35)";
-      facadeCtx.fillRect(x, y + windowH * 0.58, windowW, Math.max(1, windowH * 0.12));
-
-      emissiveCtx.fillStyle = "#000000";
-      emissiveCtx.fillRect(x, y, windowW, windowH);
-      emissiveCtx.fillStyle = (r + c) % 4 === 0 ? "#f1c77e" : "#c78b4f";
-      emissiveCtx.fillRect(x + 2, y + 2, Math.max(1, windowW - 4), Math.max(1, windowH - 4));
+    // Spandrel / horizontal panel division courses
+    for (let r = 0; r < rows; r++) {
+      const y = y0 + r * rh;
+      facadeCtx.strokeStyle = "rgba(30, 34, 42, 0.14)";
+      facadeCtx.lineWidth = 1;
+      facadeCtx.beginPath();
+      facadeCtx.moveTo(x0, y);
+      facadeCtx.lineTo(x0 + w, y);
+      facadeCtx.stroke();
     }
-  }
 
-  let seed = 99;
+    // Vertical piers for Q2
+    if (q.type === "vertical_pier") {
+      for (let c = 0; c <= cols; c++) {
+        const x = x0 + c * cw;
+        facadeCtx.fillStyle = "rgba(240, 244, 250, 0.18)";
+        facadeCtx.fillRect(x - 2, y0, 4, h);
+      }
+    }
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = x0 + c * cw + cw * marginX;
+        const y = y0 + r * rh + rh * marginY;
+        const windowW = cw * (1 - marginX * 2);
+        const windowH = rh * (1 - marginY * 2);
+
+        // Depth recess in height map
+        hctx.fillStyle = "#555555";
+        hctx.fillRect(x, y, windowW, windowH);
+
+        // Window frame
+        facadeCtx.fillStyle = "#656a72";
+        facadeCtx.fillRect(x - 1, y - 1, windowW + 2, windowH + 2);
+
+        // Day glass: deep architectural dark reflection (non-emissive)
+        const glassGrad = facadeCtx.createLinearGradient(x, y, x, y + windowH);
+        glassGrad.addColorStop(0, "#4a5563");
+        glassGrad.addColorStop(0.35, "#2d3540");
+        glassGrad.addColorStop(1, "#181e25");
+        facadeCtx.fillStyle = glassGrad;
+        facadeCtx.fillRect(x, y, windowW, windowH);
+
+        // Subtle specular highlight on glass mullion
+        facadeCtx.fillStyle = "rgba(220, 232, 245, 0.24)";
+        facadeCtx.fillRect(x + windowW * 0.12, y + 1, Math.max(1, windowW * 0.10), windowH - 2);
+
+        // Deterministic pseudo-random seed per window and floor
+        const winSeed = Math.sin((r + qIndex * 37) * 12.9898 + (c + qIndex * 19) * 78.233 + 19.3) * 43758.5453;
+        const p = winSeed - Math.floor(winSeed);
+        const floorSeed = Math.sin((r + qIndex * 23) * 31.415) * 1000;
+        const floorActive = (floorSeed - Math.floor(floorSeed)) > 0.18; // Occasional dark floors
+
+        // Night emissive (P4: 25-32% of windows lit, ~70% unlit)
+        if (floorActive && p < 0.28) {
+          let lightColor;
+          if (p < 0.09) {
+            // Warm tungsten / amber office
+            lightColor = "#f5be75";
+          } else if (p < 0.18) {
+            // Neutral warm amber
+            lightColor = "#f0be72";
+          } else if (p < 0.24) {
+            // Crisp neutral white office
+            lightColor = "#edf4fc";
+          } else {
+            // Pale fluorescent blue-white
+            lightColor = "#d6e4f8";
+          }
+          emissiveCtx.fillStyle = lightColor;
+          emissiveCtx.fillRect(x + 1.2, y + 1.2, Math.max(1, windowW - 2.4), Math.max(1, windowH - 2.4));
+        }
+      }
+    }
+  });
+
+  // Micro-noise for realistic stone/panel surface
+  let seed = 107;
   const rnd = () => {
     seed = (seed * 16807) % 2147483647;
     return seed / 2147483647;
@@ -135,7 +184,7 @@ function makeFacadeMaps() {
   const img = hctx.getImageData(0, 0, size, size);
   const d = img.data;
   for (let i = 0; i < d.length; i += 4) {
-    const n = (rnd() - 0.5) * 10;
+    const n = (rnd() - 0.5) * 8;
     d[i] += n;
     d[i + 1] += n;
     d[i + 2] += n;
@@ -154,7 +203,7 @@ function makeFacadeMaps() {
   normalCanvas.height = size;
   const nctx = normalCanvas.getContext("2d");
   const nImg = nctx.createImageData(size, size);
-  const strength = 2.2;
+  const strength = 2.0;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const dx = (heightAt(x - 1, y) - heightAt(x + 1, y)) * strength;
@@ -176,7 +225,7 @@ function makeFacadeMaps() {
   const rImg = rctx.createImageData(size, size);
   for (let i = 0; i < heightData.length; i += 4) {
     const hv = heightData[i] / 255;
-    const rough = THREE.MathUtils.clamp(THREE.MathUtils.mapLinear(hv, 0.35, 0.75, 0.4, 0.92), 0.3, 0.95);
+    const rough = THREE.MathUtils.clamp(THREE.MathUtils.mapLinear(hv, 0.35, 0.75, 0.35, 0.88), 0.25, 0.92);
     const g = Math.round(rough * 255);
     rImg.data[i] = g;
     rImg.data[i + 1] = g;
@@ -245,16 +294,21 @@ export function Buildings({ city, interactive, timeOfDay = "day" }) {
     refs.forEach((r, k) => {
       const mesh = r.current;
       if (!mesh) return;
-      const lighten = k * 0.045;
       city.buildings.forEach((b, i) => {
         tmp.copy(b.color);
-        if (lighten) tmp.lerp(HOVER, lighten);
+        const toneShift = 0.96 + (b.seed || 0.5) * 0.08;
+        tmp.multiplyScalar(toneShift);
+        // Tier 2 roof cap: subtle darker mechanical penthouse/roof tone
+        if (k === 2) tmp.multiplyScalar(0.86);
+        else if (k === 1) tmp.multiplyScalar(0.98);
         mesh.setColorAt(i, tmp);
       });
-      mesh.instanceColor.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       mesh.frustumCulled = false;
     });
     hoverState.current.prev = -1;
+    anim.force = true;
+
     const ao = aoRef.current;
     if (ao) {
       city.buildings.forEach((b, i) => {
@@ -367,7 +421,7 @@ export function Buildings({ city, interactive, timeOfDay = "day" }) {
       </instancedMesh>
       {refs.map((r, k) => (
         <instancedMesh
-          key={`${city.isAmbient ? "a" : city.meta.slug}-${n}-${k}`}
+          key={`${city.isAmbient ? "a" : city.meta.slug || "ambient"}-${n}-${k}`}
           ref={r}
           args={[geo, undefined, n]}
           castShadow
@@ -377,13 +431,13 @@ export function Buildings({ city, interactive, timeOfDay = "day" }) {
           onClick={onClick}
         >
           <meshStandardMaterial
-            roughness={1}
-            metalness={0.02}
+            roughness={0.84}
+            metalness={0.08}
             color="#ffffff"
             map={map}
-            emissive={timeOfDay === "night" ? "#ffd091" : "#000000"}
+            emissive={timeOfDay === "night" ? "#ffffff" : "#000000"}
             emissiveMap={emissiveMap}
-            emissiveIntensity={timeOfDay === "night" ? 1.15 : 0}
+            emissiveIntensity={timeOfDay === "night" ? 0.52 : 0}
             normalMap={normalMap}
             normalScale={[0.55, 0.55]}
             roughnessMap={roughnessMap}

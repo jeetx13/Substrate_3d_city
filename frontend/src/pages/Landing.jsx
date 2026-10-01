@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { Moon, Sun } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
+import { useStore } from "@/store";
 import { rig } from "@/lib/anim";
 import { lenisRef, openingSequence } from "@/lib/flow";
 import { RepoInput } from "@/components/RepoInput";
@@ -11,6 +13,8 @@ gsap.registerPlugin(ScrollTrigger);
 
 export function Landing({ hidden }) {
   const root = useRef();
+  const timeOfDay = useStore((s) => s.timeOfDay);
+  const set = useStore((s) => s.set);
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -29,7 +33,7 @@ export function Landing({ hidden }) {
         trigger: root.current, start: "top top", end: "bottom bottom", scrub: 0.6,
         onUpdate: (self) => { rig.scroll = self.progress; },
       });
-      gsap.to(".hero-copy", { y: -110, opacity: 0, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom 35%", scrub: true } });
+      gsap.to(".hero-copy", { y: -130, opacity: 0, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom 35%", scrub: true } });
       gsap.to(".veil", { opacity: 0, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom 45%", scrub: true } });
       gsap.utils.toArray(".reveal").forEach((el) => {
         gsap.to(el, { opacity: 1, y: 0, ease: "none", scrollTrigger: { trigger: el, start: "top 88%", end: "top 55%", scrub: true } });
@@ -63,26 +67,73 @@ export function Landing({ hidden }) {
       <div className="veil" />
       <header className="site-header fixed top-0 left-0 right-0 z-10 flex items-center justify-between px-6 md:px-12 py-6" data-testid="site-header">
         <div className="mono text-[12px] tracking-[0.22em]" data-testid="wordmark">SUBSTRATE</div>
-        <nav className="mono text-[11px] tracking-[0.12em] flex gap-6" style={{ color: "var(--warm-gray)" }}>
-          <Link to="/privacy" data-testid="nav-privacy">PRIVACY</Link>
-          <Link to="/terms" data-testid="nav-terms">TERMS</Link>
-        </nav>
+        <div className="flex items-center gap-6">
+          <div
+            className="pointer-events-auto inline-flex items-center rounded border border-[var(--surface-border)] bg-[var(--surface-glass)] p-0.5 shadow-sm backdrop-blur-[var(--glass-blur)]"
+            role="group"
+            aria-label="Lighting mode"
+            data-testid="landing-day-night-control"
+          >
+            <button
+              type="button"
+              className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 mono text-[10px] tracking-[0.14em] transition-all cursor-pointer ${
+                timeOfDay === "day"
+                  ? "bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] font-semibold shadow-xs"
+                  : "text-[var(--ink-soft)] hover:text-[var(--ink)]"
+              }`}
+              onClick={() => set({ timeOfDay: "day" })}
+              aria-pressed={timeOfDay === "day"}
+              aria-label="Switch to Day lighting"
+              data-testid="landing-day-segment"
+            >
+              <Sun size={11} strokeWidth={2} />
+              <span>DAY</span>
+            </button>
+            <button
+              type="button"
+              className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 mono text-[10px] tracking-[0.14em] transition-all cursor-pointer ${
+                timeOfDay === "night"
+                  ? "bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] font-semibold shadow-xs"
+                  : "text-[var(--ink-soft)] hover:text-[var(--ink)]"
+              }`}
+              onClick={() => set({ timeOfDay: "night" })}
+              aria-pressed={timeOfDay === "night"}
+              aria-label="Switch to Night lighting"
+              data-testid="landing-night-segment"
+            >
+              <Moon size={11} strokeWidth={2} />
+              <span>NIGHT</span>
+            </button>
+          </div>
+          <nav className="mono text-[11px] tracking-[0.12em] flex gap-5" style={{ color: "var(--warm-gray)" }}>
+            <Link to="/privacy" className="hover:opacity-100 transition-opacity" data-testid="nav-privacy">PRIVACY</Link>
+            <Link to="/terms" className="hover:opacity-100 transition-opacity" data-testid="nav-terms">TERMS</Link>
+          </nav>
+        </div>
       </header>
 
       <section className="hero relative z-[1] min-h-screen flex items-end md:items-center px-6 md:px-12 pb-20 md:pb-0">
-        <div className="hero-copy w-full max-w-[820px] md:ml-[2vw]">
-          <div className="hero-frame">
-            <div className="hero-eyebrow eyebrow mb-6">A code city, built from git</div>
-            <h1 className="hero-headline serif leading-[1.02] m-0" data-testid="hero-headline">
-              <span className="h1-line"><span>Every file becomes a building.</span></span>
-              <span className="h1-line"><span>Every import becomes a road.</span></span>
-              <span className="h1-line"><span style={{ color: "var(--olive)" }}>History replays as the city grows.</span></span>
-            </h1>
-            <p className="hero-sub mt-7 mb-0 max-w-[520px] text-sm md:text-base" style={{ color: "var(--ink-soft)" }} data-testid="hero-subheadline">
-              Paste a public GitHub repository. SUBSTRATE clones it, parses the import graph, lays it out as a city, and replays the git log as buildings rising from the ground.
-            </p>
+        <div className="hero-copy w-full max-w-[760px] md:ml-[2vw]">
+          <div className="hero-layout flex flex-col items-start">
+            <div className="hero-eyebrow-scrim mb-3">
+              <div className="hero-eyebrow eyebrow">A code city, built from git</div>
+            </div>
+            <div className="hero-headline-scrim">
+              <h1 className="hero-headline serif leading-[1.02] m-0" data-testid="hero-headline">
+                <span className="h1-line"><span>Every file becomes a building.</span></span>
+                <span className="h1-line"><span>Every import becomes a road.</span></span>
+                <span className="h1-line"><span style={{ color: "var(--olive)" }}>History replays as the city grows.</span></span>
+              </h1>
+            </div>
+            <div className="hero-sub-scrim mt-6">
+              <p className="hero-sub m-0 max-w-[520px] text-sm md:text-base" style={{ color: "var(--ink-soft)" }} data-testid="hero-subheadline">
+                Paste a public GitHub repository. SUBSTRATE clones it, parses the import graph, lays it out as a city, and replays the git log as buildings rising from the ground.
+              </p>
+            </div>
+            <div className="hero-form-scrim mt-6 w-full max-w-[560px]">
+              <div className="hero-form"><RepoInput id="hero" /></div>
+            </div>
           </div>
-          <div className="hero-form mt-6"><RepoInput id="hero" /></div>
         </div>
         <aside className="hero-spec mono" aria-label="City key">
           <div>Files = buildings</div>
