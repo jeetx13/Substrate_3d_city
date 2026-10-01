@@ -2,12 +2,19 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 const dummy = new THREE.Object3D();
-const blockTones = ["#817d73", "#878379", "#7b776e", "#8a857a"];
-const sidewalkTones = ["#a7a193", "#ada797", "#a19b8e", "#b1aa9b"];
-const nightBlockTones = ["#30384a", "#343d50", "#2b3445", "#384153"];
-const nightSidewalkTones = ["#626a7a", "#697182", "#5d6678", "#70788a"];
-const sidewalkMargin = 0.34;
-const curbWidth = 0.12;
+
+// Cool neutral concrete / stone environment palette - Day (P2: NOT beige, NOT cream, NOT sand)
+const blockTones = ["#858d98", "#8b939e", "#808893", "#89919c"];
+const sidewalkTones = ["#9ba3ae", "#a3abb7", "#969ea9", "#a0a8b3"];
+const parcelTones = ["#7a828d", "#828a95", "#757d88", "#7e8691"];
+
+// Cool deep slate environment palette - Night (P2: readable slate, not pure black)
+const nightBlockTones = ["#232b3a", "#273041", "#1f2736", "#252e3e"];
+const nightSidewalkTones = ["#333c4f", "#384256", "#2f384a", "#3b455b"];
+const nightParcelTones = ["#1c2330", "#202837", "#19202c", "#1e2634"];
+
+const sidewalkMargin = 0.38;
+const curbWidth = 0.14;
 
 function makeGroundTexture() {
   const size = 1024;
@@ -15,22 +22,23 @@ function makeGroundTexture() {
   canvas.width = size; canvas.height = size;
   const ctx = canvas.getContext("2d");
 
-  ctx.fillStyle = "#89857b";
+  // Cool neutral gray concrete base (Day)
+  ctx.fillStyle = "#6f7680";
   ctx.fillRect(0, 0, size, size);
   let seed = 41;
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   const img = ctx.getImageData(0, 0, size, size);
   const d = img.data;
   for (let i = 0; i < d.length; i += 4) {
-    const n = (rnd() - 0.5) * 12;
-    d[i] = Math.max(0, Math.min(255, d[i] + n));
-    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n * 0.96));
-    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n * 0.9));
+    const n = (rnd() - 0.5) * 14;
+    d[i] = Math.max(0, Math.min(255, d[i] + n * 0.95));
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n * 0.98));
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n * 1.05)); // Cool leaning tint
   }
   ctx.putImageData(img, 0, 0);
 
-  // Light expansion joints on a block-sized rhythm keep the open city edge from reading as a blank plane.
-  ctx.strokeStyle = "rgba(48, 43, 35, 0.14)";
+  // Subtle architectural expansion joints on an urban rhythm
+  ctx.strokeStyle = "rgba(35, 40, 48, 0.12)";
   ctx.lineWidth = 2;
   for (let p = 0; p <= size; p += 128) {
     ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, size); ctx.stroke();
@@ -39,14 +47,14 @@ function makeGroundTexture() {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(14, 14);
+  tex.repeat.set(24, 24);
   tex.anisotropy = 8;
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
 function environmentInstances(city) {
-  if (!city?.buildings?.length) return { blocks: [], sidewalks: [] };
+  if (!city?.buildings?.length) return { blocks: [], sidewalks: [], parcels: [] };
   const { blockCells, gridPitch } = city;
   const groups = new Map();
   city.buildings.forEach((building) => {
@@ -56,6 +64,7 @@ function environmentInstances(city) {
     if (!groups.has(key)) groups.set(key, { row, col, buildings: [] });
     groups.get(key).buildings.push(building);
   });
+
   const blocks = [...groups.values()].map((group, i) => {
     const xs = group.buildings.map((b) => b.x);
     const zs = group.buildings.map((b) => b.z);
@@ -71,8 +80,9 @@ function environmentInstances(city) {
     if (east) maxX = east.x - (east.renderWidth + curbWidth) * 0.5;
     if (north) minZ = north.z + (north.renderWidth + curbWidth) * 0.5;
     if (south) maxZ = south.z - (south.renderWidth + curbWidth) * 0.5;
-    return { x: (minX + maxX) * 0.5, z: (minZ + maxZ) * 0.5, w: maxX - minX, d: maxZ - minZ, tone: i % blockTones.length };
+    return { x: (minX + maxX) * 0.5, z: (minZ + maxZ) * 0.5, w: Math.max(0.5, maxX - minX), d: Math.max(0.5, maxZ - minZ), tone: i % blockTones.length };
   });
+
   const sidewalks = city.buildings.map((building, i) => {
     const frontage = building.tiers.filter(Boolean).reduce((max, tier) => Math.max(max,
       tier.w + Math.abs(tier.ox) * 2,
@@ -80,23 +90,32 @@ function environmentInstances(city) {
     const extent = Math.min(gridPitch - 0.12, frontage + sidewalkMargin * 2);
     return { x: building.x, z: building.z, extent, tone: i % sidewalkTones.length };
   });
-  return { blocks, sidewalks };
+
+  // Parcel / lot pad directly anchored beneath each building footprint
+  const parcels = city.buildings.map((building, i) => {
+    const w = building.size * 1.10;
+    return { x: building.x, z: building.z, w, d: w, tone: i % parcelTones.length };
+  });
+
+  return { blocks, sidewalks, parcels };
 }
 
 export function Ground({ radius, city, timeOfDay = "day" }) {
   const tex = useMemo(makeGroundTexture, []);
   const blockRef = useRef();
   const sidewalkRef = useRef();
+  const parcelRef = useRef();
   const instances = useMemo(() => environmentInstances(city), [city]);
-  const blockGeometry = useMemo(() => new THREE.BoxGeometry(1, 0.04, 1), []);
-  const sidewalkGeometry = useMemo(() => new THREE.BoxGeometry(1, 0.03, 1), []);
+  const blockGeometry = useMemo(() => new THREE.BoxGeometry(1, 0.035, 1), []);
+  const sidewalkGeometry = useMemo(() => new THREE.BoxGeometry(1, 0.026, 1), []);
+  const parcelGeometry = useMemo(() => new THREE.BoxGeometry(1, 0.018, 1), []);
   const night = timeOfDay === "night";
 
   useEffect(() => {
     const blocks = blockRef.current;
     if (blocks) {
       instances.blocks.forEach((block, i) => {
-        dummy.position.set(block.x, -0.005, block.z);
+        dummy.position.set(block.x, 0.015, block.z);
         dummy.scale.set(block.w, 1, block.d);
         dummy.updateMatrix();
         blocks.setMatrixAt(i, dummy.matrix);
@@ -106,10 +125,11 @@ export function Ground({ radius, city, timeOfDay = "day" }) {
       if (blocks.instanceColor) blocks.instanceColor.needsUpdate = true;
       blocks.frustumCulled = false;
     }
+
     const sidewalks = sidewalkRef.current;
     if (sidewalks) {
       instances.sidewalks.forEach((sidewalk, i) => {
-        dummy.position.set(sidewalk.x, 0.02, sidewalk.z);
+        dummy.position.set(sidewalk.x, 0.024, sidewalk.z);
         dummy.scale.set(sidewalk.extent, 1, sidewalk.extent);
         dummy.updateMatrix();
         sidewalks.setMatrixAt(i, dummy.matrix);
@@ -119,22 +139,47 @@ export function Ground({ radius, city, timeOfDay = "day" }) {
       if (sidewalks.instanceColor) sidewalks.instanceColor.needsUpdate = true;
       sidewalks.frustumCulled = false;
     }
+
+    const parcels = parcelRef.current;
+    if (parcels) {
+      instances.parcels.forEach((parcel, i) => {
+        dummy.position.set(parcel.x, 0.028, parcel.z);
+        dummy.scale.set(parcel.w, 1, parcel.d);
+        dummy.updateMatrix();
+        parcels.setMatrixAt(i, dummy.matrix);
+        parcels.setColorAt(i, new THREE.Color((night ? nightParcelTones : parcelTones)[parcel.tone]));
+      });
+      parcels.instanceMatrix.needsUpdate = true;
+      if (parcels.instanceColor) parcels.instanceColor.needsUpdate = true;
+      parcels.frustumCulled = false;
+    }
   }, [instances, night]);
 
   return (
     <group>
-      <mesh rotation-x={-Math.PI / 2} position-y={-0.02} receiveShadow>
-        <planeGeometry args={[2400, 2400]} />
-        <meshStandardMaterial map={tex} roughness={1} metalness={0} color={night ? "#647189" : "#ffffff"} />
+      {/* Extended ground plane that dissolves seamlessly into horizon fog */}
+      <mesh rotation-x={-Math.PI / 2} position-y={-0.01} receiveShadow>
+        <planeGeometry args={[3800, 3800]} />
+        <meshStandardMaterial
+          map={tex}
+          roughness={0.96}
+          metalness={0.02}
+          color={night ? "#323c4e" : "#f2f5f8"}
+        />
       </mesh>
       {instances.blocks.length > 0 && (
-        <instancedMesh key={`${city.meta.slug}-blocks-${instances.blocks.length}`} ref={blockRef} args={[blockGeometry, undefined, instances.blocks.length]} receiveShadow>
-          <meshStandardMaterial roughness={0.98} color="#ffffff" />
+        <instancedMesh key={`${city.meta.slug || "ambient"}-blocks-${instances.blocks.length}`} ref={blockRef} args={[blockGeometry, undefined, instances.blocks.length]} receiveShadow>
+          <meshStandardMaterial roughness={0.94} color="#ffffff" />
         </instancedMesh>
       )}
       {instances.sidewalks.length > 0 && (
-        <instancedMesh key={`${city.meta.slug}-sidewalks-${instances.sidewalks.length}`} ref={sidewalkRef} args={[sidewalkGeometry, undefined, instances.sidewalks.length]} receiveShadow>
-          <meshStandardMaterial roughness={0.92} color="#ffffff" />
+        <instancedMesh key={`${city.meta.slug || "ambient"}-sidewalks-${instances.sidewalks.length}`} ref={sidewalkRef} args={[sidewalkGeometry, undefined, instances.sidewalks.length]} receiveShadow>
+          <meshStandardMaterial roughness={0.90} color="#ffffff" />
+        </instancedMesh>
+      )}
+      {instances.parcels.length > 0 && (
+        <instancedMesh key={`${city.meta.slug || "ambient"}-parcels-${instances.parcels.length}`} ref={parcelRef} args={[parcelGeometry, undefined, instances.parcels.length]} receiveShadow>
+          <meshStandardMaterial roughness={0.88} color="#ffffff" />
         </instancedMesh>
       )}
     </group>

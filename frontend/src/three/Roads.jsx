@@ -5,15 +5,15 @@ import { anim } from "@/lib/anim";
 import { useStore } from "@/store";
 
 const dummy = new THREE.Object3D();
-const dark = new THREE.Color("#3c3a35");
-const broad = new THREE.Color("#4c4942");
-const curbColor = new THREE.Color("#b1a996");
-const connected = new THREE.Color("#85866f");
-const nightDark = new THREE.Color("#202a3b");
-const nightBroad = new THREE.Color("#29364a");
-const nightCurb = new THREE.Color("#66738a");
-const nightConnected = new THREE.Color("#8fa4ce");
-const curbWidth = 0.12;
+const dark = new THREE.Color("#20242b");
+const broad = new THREE.Color("#2a2f38");
+const curbColor = new THREE.Color("#7d848f");
+const connected = new THREE.Color("#4a76a8");
+const nightDark = new THREE.Color("#0e1218");
+const nightBroad = new THREE.Color("#151a23");
+const nightCurb = new THREE.Color("#293140");
+const nightConnected = new THREE.Color("#d99a4e");
+const curbWidth = 0.14;
 
 function smooth(a, b, x) {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -172,7 +172,7 @@ export function Roads({ city, timeOfDay = "day" }) {
       </instancedMesh>
       {junctions.length > 0 && (
         <instancedMesh key={`${key}-junctions`} ref={junctionRef} args={[junctionGeometry, undefined, junctions.length]} receiveShadow>
-          <meshStandardMaterial color={night ? "#313b50" : "#3c3a35"} roughness={0.98} />
+          <meshStandardMaterial color={night ? "#161b24" : "#22252a"} roughness={0.98} />
         </instancedMesh>
       )}
       {dashes.length > 0 && (

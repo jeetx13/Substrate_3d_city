@@ -8,6 +8,7 @@ import { Ground } from "./Ground";
 import { Lights } from "./Lights";
 import { Buildings } from "./Buildings";
 import { Roads } from "./Roads";
+import { OuterEnvironment } from "./OuterEnvironment";
 import { CameraRig } from "./CameraRig";
 
 function DistrictLabels({ city, visible }) {
@@ -50,6 +51,7 @@ export function Scene() {
         <fog attach="fog" args={[timeOfDay === "night" ? "#101928" : "#d5cfc2", R * 1.1, R * 4.8 + 60]} />
         <Lights radius={R} hero={mode === "landing"} timeOfDay={timeOfDay} />
         <Ground radius={R} city={city} timeOfDay={timeOfDay} />
+        <OuterEnvironment radius={R} timeOfDay={timeOfDay} />
         <Buildings city={city} interactive={mode === "city"} timeOfDay={timeOfDay} />
         <Roads city={city} timeOfDay={timeOfDay} />
         <CameraRig mode={mode} radius={R} />

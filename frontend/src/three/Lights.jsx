@@ -3,18 +3,18 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { anim } from "@/lib/anim";
 
-const DAY_SKY = new THREE.Color("#f4ead8");
-const NIGHT_SKY = new THREE.Color("#667da7");
-const DAY_GROUND = new THREE.Color("#777163");
-const NIGHT_GROUND = new THREE.Color("#28364c");
-const DAY_SUN = new THREE.Color("#ffedcf");
-const NIGHT_MOON = new THREE.Color("#a9c2f0");
-const DAY_FILL = new THREE.Color("#d8d7c9");
-const NIGHT_FILL = new THREE.Color("#8093bc");
-const DAY_RIM = new THREE.Color("#eadfc8");
-const NIGHT_RIM = new THREE.Color("#7995c8");
-const DAY_POSITION = new THREE.Vector3(1.1, 0.95, 0.55);
-const NIGHT_POSITION = new THREE.Vector3(-0.72, 1.2, -0.5);
+const DAY_SKY = new THREE.Color("#dce6f2");
+const NIGHT_SKY = new THREE.Color("#344663");
+const DAY_GROUND = new THREE.Color("#6e757d");
+const NIGHT_GROUND = new THREE.Color("#171d27");
+const DAY_SUN = new THREE.Color("#fff7ec");
+const NIGHT_MOON = new THREE.Color("#829ec9");
+const DAY_FILL = new THREE.Color("#cddae8");
+const NIGHT_FILL = new THREE.Color("#364761");
+const DAY_RIM = new THREE.Color("#dce7f5");
+const NIGHT_RIM = new THREE.Color("#4a6388");
+const DAY_POSITION = new THREE.Vector3(1.15, 1.30, 0.65);
+const NIGHT_POSITION = new THREE.Vector3(-0.85, 1.25, -0.6);
 
 export function Lights({ radius, hero = false, timeOfDay = "day" }) {
   const sun = useRef();
@@ -22,38 +22,43 @@ export function Lights({ radius, hero = false, timeOfDay = "day" }) {
   const hemi = useRef();
   const rim = useRef();
   const nightMix = useRef(timeOfDay === "night" ? 1 : 0);
+
   useFrame((_, dt) => {
-    const l = anim.light;
+    // Ensure base light is active even if anim.light is still ramping
+    const l = Math.max(anim.light, 0.85);
     const target = timeOfDay === "night" ? 1 : 0;
-    nightMix.current = THREE.MathUtils.damp(nightMix.current, target, 1.5, dt);
+    nightMix.current = THREE.MathUtils.damp(nightMix.current, target, 2.2, dt);
     const mix = nightMix.current;
+
     if (sun.current) {
-      sun.current.intensity = THREE.MathUtils.lerp(0.35 + 2.0 * l, 0.08 + 0.12 * l, mix);
+      // Clear key light direction for Day with crisp architectural shading
+      sun.current.intensity = THREE.MathUtils.lerp(2.35 * l, 0.30 * l, mix);
       sun.current.color.copy(DAY_SUN).lerp(NIGHT_MOON, mix);
       sun.current.position.copy(DAY_POSITION).lerp(NIGHT_POSITION, mix).multiplyScalar(radius);
     }
     if (fill.current) {
-      fill.current.intensity = THREE.MathUtils.lerp(0.2 + 0.7 * l, 0.35 + 0.35 * l, mix);
+      fill.current.intensity = THREE.MathUtils.lerp(0.48 * l, 0.28 * l, mix);
       fill.current.color.copy(DAY_FILL).lerp(NIGHT_FILL, mix);
     }
     if (hemi.current) {
-      hemi.current.intensity = THREE.MathUtils.lerp(0.5 + 0.55 * l, 0.25 + 0.16 * l, mix);
+      hemi.current.intensity = THREE.MathUtils.lerp(0.72 * l, 0.24 * l, mix);
       hemi.current.color.copy(DAY_SKY).lerp(NIGHT_SKY, mix);
       hemi.current.groundColor.copy(DAY_GROUND).lerp(NIGHT_GROUND, mix);
     }
     if (rim.current) {
-      rim.current.intensity = THREE.MathUtils.lerp((hero ? 0.55 : 0.3) * l, 0.78 * l, mix);
+      rim.current.intensity = THREE.MathUtils.lerp((hero ? 0.45 : 0.32) * l, 0.42 * l, mix);
       rim.current.color.copy(DAY_RIM).lerp(NIGHT_RIM, mix);
     }
   });
+
   const s = Math.max(radius * 1.5, 40);
   return (
     <>
-      <hemisphereLight ref={hemi} args={["#f4ead8", "#777163", 0.8]} />
+      <hemisphereLight ref={hemi} args={["#dce6f2", "#6e757d", 0.85]} />
       <directionalLight
         ref={sun}
         position={[radius * DAY_POSITION.x, radius * DAY_POSITION.y, radius * DAY_POSITION.z]}
-        intensity={2.5}
+        intensity={2.2}
         color={DAY_SUN}
         castShadow
         shadow-mapSize={hero ? [3072, 3072] : [2048, 2048]}
@@ -67,12 +72,11 @@ export function Lights({ radius, hero = false, timeOfDay = "day" }) {
         shadow-camera-top={s}
         shadow-camera-bottom={-s}
       />
-      <directionalLight ref={fill} position={[-radius, radius * 0.5, -radius * 0.7]} intensity={0.5} color={DAY_FILL} />
-      {/* subtle rim light for depth — no shadow cast, negligible cost even at full city scale */}
+      <directionalLight ref={fill} position={[-radius, radius * 0.6, -radius * 0.7]} intensity={0.65} color={DAY_FILL} />
       <directionalLight
         ref={rim}
-        position={[-radius * 0.4, radius * 0.35, radius * 1.2]}
-        intensity={0.3}
+        position={[-radius * 0.4, radius * 0.4, radius * 1.2]}
+        intensity={0.35}
         color={DAY_RIM}
       />
     </>
