@@ -48,7 +48,7 @@ export function Scene() {
         camera={{ fov: 36, near: 0.5, far: R * 12 + 400, position: [50, 34, 66] }}
         gl={{ antialias: true, alpha: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.02 }}
       >
-        <fog attach="fog" args={[timeOfDay === "night" ? "#101928" : "#d5cfc2", R * 1.1, R * 4.8 + 60]} />
+        <fog attach="fog" args={[timeOfDay === "night" ? "#0e1522" : "#9aacc0", R * 1.1, R * 4.8 + 60]} />
         <Lights radius={R} hero={mode === "landing"} timeOfDay={timeOfDay} />
         <Ground radius={R} city={city} timeOfDay={timeOfDay} />
         <OuterEnvironment radius={R} timeOfDay={timeOfDay} />

@@ -50,7 +50,7 @@ export default function Experience() {
 
   return (
     <>
-      <div className={`sky${timeOfDay === "night" ? " sky--night" : ""}`} />
+      <div className="sky" />
       <Scene />
       <Landing hidden={Boolean(jobId) || mode !== "landing"} />
       {routeError ? (
@@ -66,3 +66,4 @@ export default function Experience() {
     </>
   );
 }
+
