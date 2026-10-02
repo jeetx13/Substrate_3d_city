@@ -1,0 +1,45 @@
+name: Bake hero
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: 'Commit generated hero data to repository'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend requirements
+        run: pip install -r backend/requirements.txt
+
+      - name: Run bake_hero.py
+        run: python tools/bake_hero.py
+
+      - name: Upload hero-rich.json artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hero-rich
+          path: frontend/src/data/hero-rich.json
+
+      - name: Commit hero data
+        if: ${{ inputs.commit == true }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/data/hero-rich.json
+          git diff --staged --quiet || (git commit -m "chore: bake hero data for Textualize/rich" && git push)
