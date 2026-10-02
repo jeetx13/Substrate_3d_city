@@ -18,6 +18,10 @@ export default function Experience() {
   const [routeError, setRouteError] = useState("");
 
   useEffect(() => {
+    document.documentElement.dataset.theme = timeOfDay;
+  }, [timeOfDay]);
+
+  useEffect(() => {
     if (!jobId) {
       setRouteError("");
       return undefined;
