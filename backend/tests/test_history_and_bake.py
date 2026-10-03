@@ -272,10 +272,16 @@ def test_size_validation_oversized(tmp_path):
     # Create payload that compresses to > 300 KB
     big_data = {"data": os.urandom(400_000).hex()}
 
-    out_file = tmp_path / "oversized.json"
+    out_dir = tmp_path / "nonexistent_dir"
+    out_file = out_dir / "oversized.json"
+    assert not out_file.exists()
+    assert not out_dir.exists()
+
     with pytest.raises(SystemExit) as exc_info:
         serialize_and_check(big_data, out_path=out_file)
     assert exc_info.value.code == 1
+    assert not out_file.exists()
+    assert not out_dir.exists()
 
 
 def test_size_validation_valid(tmp_path):

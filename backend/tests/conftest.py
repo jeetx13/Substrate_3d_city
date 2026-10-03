@@ -8,3 +8,6 @@ import os
 
 os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("DB_NAME", "substrate_test")
+
+# backend_test.py is a live-server integration script; run it manually against a running backend.
+collect_ignore = ["backend_test.py"]

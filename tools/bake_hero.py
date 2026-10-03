@@ -69,7 +69,7 @@ def scan_files_excluding_generated(repo_dir, cap=None, **kwargs):
 
     total = len(filtered)
     if cap is None:
-        cap = kwargs.get("cap", getattr(run, "FILE_CAP", 1500))
+        cap = getattr(run, "FILE_CAP", 1500)
     capped = total > cap
     selected = filtered[:cap]
     return selected, total, capped
@@ -98,13 +98,9 @@ def serialize_and_check(result, out_path=None):
         out_path = Path(out_path)
 
     compact = json.dumps(result, separators=(",", ":"))
-    raw_bytes = len(compact.encode("utf-8"))
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write(compact)
-
-    gz_bytes = len(gzip.compress(compact.encode("utf-8"), compresslevel=9))
+    encoded = compact.encode("utf-8")
+    raw_bytes = len(encoded)
+    gz_bytes = len(gzip.compress(encoded, compresslevel=9))
     print(f"raw_bytes: {raw_bytes}  gzip_bytes: {gz_bytes}")
 
     if gz_bytes > MAX_GZIP_BYTES:
@@ -114,6 +110,10 @@ def serialize_and_check(result, out_path=None):
             file=sys.stderr,
         )
         sys.exit(1)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(compact)
 
     return raw_bytes, gz_bytes
 
