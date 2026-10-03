@@ -81,8 +81,15 @@ def build_history(files, commits, max_snapshots: int = 60):
     for f in files:
         p = f["path"]
         delta = sum(a - d for _, a, d in touched.get(p, []))
-        loc[p] = max(0, f["loc"] - delta)
-        exists[p] = p not in touched
+        initial = f["loc"] - delta
+        loc[p] = max(0, initial)
+        # Heuristic: if the unclamped pre-window LOC is positive the file
+        # already had content before the commit window, so it exists from the
+        # start.  If initial <= 0 the file was created inside the window and
+        # appears at its first touching commit.
+        # Limitation: a file that existed before the window but was shrunk to
+        # zero within it cannot be told apart from a file created in the window.
+        exists[p] = initial > 0 if p in touched else True
 
     snapshots = []
     if n == 0:

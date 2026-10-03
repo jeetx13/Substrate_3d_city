@@ -101,6 +101,18 @@ Create a database user, copy the driver's connection URI into `MONGO_URL`, and a
 - Import extraction and churn/history are heuristics, not a full compiler or security analysis. Dynamic or unresolved imports may be incomplete or marked low confidence.
 - Use a persistent work directory if previews must survive backend instance restarts. Temporary storage is not a durable source-code archive.
 
+### Hero bake
+
+Run the hero bake locally with `python tools/bake_hero.py`.
+Trigger it via the GitHub Actions tab once the workflow file exists on the default branch.
+Trigger it from the CLI with `gh workflow run bake-hero.yml --ref <branch>`.
+
+## Known limitations / Deferred
+
+- The file cap currently keeps the shallowest paths by directory depth, then alphabetical, not the most connected files.
+- Connectedness-based partial rendering and general generated-file exclusion for user repos are approved product decisions that are not implemented yet.
+- The hero bake excludes Rich's generated unicode tables via `tools/bake_hero.py` only.
+
 ## Repository layout
 
 ```text

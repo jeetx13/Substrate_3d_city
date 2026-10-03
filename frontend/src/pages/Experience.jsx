@@ -19,6 +19,7 @@ export default function Experience() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = timeOfDay;
+    try { localStorage.setItem("substrate-theme", timeOfDay); } catch (_) { /* storage unavailable */ }
   }, [timeOfDay]);
 
   useEffect(() => {

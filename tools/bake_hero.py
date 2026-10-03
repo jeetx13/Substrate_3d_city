@@ -6,7 +6,6 @@ Writes output to frontend/src/data/hero-rich.json.
 
 from datetime import datetime, timezone
 import gzip
-import inspect
 import json
 import os
 from pathlib import Path
@@ -14,86 +13,72 @@ import subprocess
 import sys
 import tempfile
 
-# 1) Add repository root to sys.path
+# Add repository root to sys.path so `from backend.pipeline import run` works
+# when the script is run from the repo root as `python tools/bake_hero.py`.
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-# 2) Import backend.pipeline.run
+# When running under pytest from backend/, `pipeline.run` may already be in sys.modules.
+# Ensure `backend.pipeline.run` maps to `pipeline.run` so both names refer to the same module.
+if "pipeline.run" in sys.modules and "backend.pipeline.run" not in sys.modules:
+    import types
+    if "backend" not in sys.modules:
+        backend_pkg = types.ModuleType("backend")
+        backend_pkg.__path__ = [str(REPO_ROOT / "backend")]
+        sys.modules["backend"] = backend_pkg
+    if "backend.pipeline" not in sys.modules:
+        sys.modules["backend.pipeline"] = sys.modules["pipeline"]
+    sys.modules["backend.pipeline.run"] = sys.modules["pipeline.run"]
+
 from backend.pipeline import run
 
-# 3) Set runtime limits
-run.COMMIT_DEPTH = 1500
-run.SNAPSHOTS = 60
+# Default output path (overridable for testing).
+OUTPUT_PATH = REPO_ROOT / "frontend" / "src" / "data" / "hero-rich.json"
+
+# Gzip size threshold in bytes (~300 KB).
+MAX_GZIP_BYTES = 300 * 1024
 
 
-# 4) Helper to detect generated unicode tables in rich/_unicode_data
-def is_generated_unicode_file(f):
-    if isinstance(f, dict):
-        p = f.get("path", "")
-    elif hasattr(f, "path"):
-        p = getattr(f, "path", "")
-    elif isinstance(f, (list, tuple)) and len(f) > 0 and isinstance(f[0], str):
-        p = f[0]
-    else:
-        p = str(f)
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-    norm = p.replace("\\", "/").strip("/")
-    if "rich/_unicode_data" in norm:
-        filename = norm.split("/")[-1]
-        if filename.startswith("unicode") and filename.endswith(".py") and filename != "__init__.py":
-            return True
-    return False
+def _is_generated_unicode_file(path_str: str) -> bool:
+    """Return True for generated unicode table files inside rich/_unicode_data."""
+    norm = path_str.replace("\\", "/").strip("/")
+    if "rich/_unicode_data" not in norm:
+        return False
+    filename = norm.split("/")[-1]
+    return filename.startswith("unicode") and filename.endswith(".py") and filename != "__init__.py"
 
 
-# Wrap run.scan_files so it drops unicode*.py inside rich/_unicode_data and preserves shape
-orig_scan_files = run.scan_files
+_orig_scan_files = run.scan_files
 
 
-def wrapped_scan_files(*args, **kwargs):
-    result = orig_scan_files(*args, **kwargs)
-    if isinstance(result, tuple) and len(result) == 3:
-        files, total, capped = result
-        filtered_files = [f for f in files if not is_generated_unicode_file(f)]
-        dropped = len(files) - len(filtered_files)
-        new_total = max(0, total - dropped)
+def scan_files_excluding_generated(repo_dir, cap=None, **kwargs):
+    """Wrapper around the real scan_files that drops Rich's generated unicode
+    tables, then re-applies the cap so that ``total`` and ``capped`` stay
+    consistent with the filtered list.  Preserves the depth-then-path ordering
+    and the 3-tuple return shape ``(files, total, capped)``."""
+    # Call original with a very large cap so we see all files.
+    files, _total, _capped = _orig_scan_files(repo_dir, cap=999_999)
+
+    # Drop generated unicode tables.
+    filtered = [f for f in files if not _is_generated_unicode_file(f["path"])]
+
+    total = len(filtered)
+    if cap is None:
         cap = kwargs.get("cap", getattr(run, "FILE_CAP", 1500))
-        new_capped = new_total > cap
-        return (filtered_files, new_total, new_capped)
-    elif isinstance(result, dict):
-        files = result.get("files", [])
-        total = result.get("total", len(files))
-        capped = result.get("capped", False)
-        filtered_files = [f for f in files if not is_generated_unicode_file(f)]
-        dropped = len(files) - len(filtered_files)
-        new_total = max(0, total - dropped)
-        cap = kwargs.get("cap", getattr(run, "FILE_CAP", 1500))
-        new_capped = new_total > cap
-        res = dict(result)
-        res["files"] = filtered_files
-        res["total"] = new_total
-        res["capped"] = new_capped
-        return res
-    return result
-
-
-run.scan_files = wrapped_scan_files
+    capped = total > cap
+    selected = filtered[:cap]
+    return selected, total, capped
 
 
 def count_snapshot_buildings(snapshot):
+    """Count file_states where ``exists`` is true."""
     states = snapshot.get("file_states") or snapshot.get("buildings") or []
-    if isinstance(states, dict):
-        return len(states)
-    count = 0
-    for s in states:
-        if isinstance(s, dict):
-            if s.get("exists") and (s.get("loc", 1) > 0):
-                count += 1
-            elif s.get("exists") is True:
-                count += 1
-        else:
-            count += 1
-    return count
+    return sum(1 for s in states if isinstance(s, dict) and s.get("exists"))
 
 
 def compute_gzipped_size(data):
@@ -101,64 +86,94 @@ def compute_gzipped_size(data):
     return len(gzip.compress(json_bytes, compresslevel=9))
 
 
-def main():
+def serialize_and_check(result, out_path=None):
+    """Write *result* as compact JSON, print raw + gzip sizes.
+
+    Returns ``(raw_bytes, gzip_bytes)``.  Exits with status 1 when the gzip
+    size exceeds ``MAX_GZIP_BYTES``.
+    """
+    if out_path is None:
+        out_path = OUTPUT_PATH
+    else:
+        out_path = Path(out_path)
+
+    compact = json.dumps(result, separators=(",", ":"))
+    raw_bytes = len(compact.encode("utf-8"))
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(compact)
+
+    gz_bytes = len(gzip.compress(compact.encode("utf-8"), compresslevel=9))
+    print(f"raw_bytes: {raw_bytes}  gzip_bytes: {gz_bytes}")
+
+    if gz_bytes > MAX_GZIP_BYTES:
+        print(
+            f"ERROR: gzip size ({gz_bytes / 1024:.1f} KB) exceeds "
+            f"{MAX_GZIP_BYTES / 1024:.0f} KB threshold.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    return raw_bytes, gz_bytes
+
+
+# ---------------------------------------------------------------------------
+# Configuration (no module-level side effects)
+# ---------------------------------------------------------------------------
+
+def configure():
+    """Apply hero-specific overrides.  Kept out of module level so that
+    importing bake_hero does not mutate ``run``."""
+    run.COMMIT_DEPTH = 1500
+    run.SNAPSHOTS = 60
+    run.scan_files = scan_files_excluding_generated
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main(out_path=None):
+    if out_path is None:
+        out_path = OUTPUT_PATH
+    else:
+        out_path = Path(out_path)
+
+    configure()
+
     target_url = "https://github.com/Textualize/rich.git"
     slug = "Textualize/rich"
+
+    def progress(stage, message):
+        print(f"[{stage}] {message}")
 
     with tempfile.TemporaryDirectory() as temp_dir:
         work_dir = Path(temp_dir)
 
-        # 5) Run pipeline into temp work dir
-        sig = inspect.signature(run.run_pipeline)
-        param_names = list(sig.parameters.keys())
-        kwargs = {}
-        args = []
-        if len(param_names) >= 1:
-            args.append(target_url)
-        if len(param_names) >= 2:
-            args.append(slug)
-        if "work_dir" in param_names:
-            kwargs["work_dir"] = str(work_dir)
-        elif len(param_names) >= 3 and param_names[2] in ("work_dir", "dest", "dest_dir", "repo_dir", "tmp_dir"):
-            args.append(str(work_dir))
+        result = run.run_pipeline(target_url, slug, work_dir, progress)
 
-        if inspect.iscoroutinefunction(run.run_pipeline):
-            import asyncio
-            result = asyncio.run(run.run_pipeline(*args, **kwargs))
-        else:
-            result = run.run_pipeline(*args, **kwargs)
-
-        # 6) Read HEAD sha from the clone
+        # Read HEAD sha from the clone (lives at work_dir/repo).
         head_sha = None
-        for candidate in [work_dir / "repo", work_dir / "rich", work_dir]:
-            if (candidate / ".git").exists():
-                try:
-                    head_sha = subprocess.check_output(
-                        ["git", "rev-parse", "HEAD"], cwd=str(candidate)
-                    ).decode("utf-8").strip()
-                    break
-                except Exception:
-                    pass
+        repo_clone = work_dir / "repo"
+        try:
+            head_sha = subprocess.check_output(
+                ["git", "-C", str(repo_clone), "rev-parse", "HEAD"],
+            ).decode("utf-8").strip()
+        except Exception:
+            pass
 
-        if not head_sha:
-            for git_dir in work_dir.glob("**/.git"):
-                if git_dir.is_dir():
-                    try:
-                        head_sha = subprocess.check_output(
-                            ["git", "rev-parse", "HEAD"], cwd=str(git_dir.parent)
-                        ).decode("utf-8").strip()
-                        break
-                    except Exception:
-                        pass
-
+        # Single fallback: git ls-remote.
         if not head_sha:
             try:
-                out = subprocess.check_output(["git", "ls-remote", target_url, "HEAD"]).decode("utf-8")
+                out = subprocess.check_output(
+                    ["git", "ls-remote", target_url, "HEAD"],
+                ).decode("utf-8")
                 head_sha = out.split()[0].strip()
             except Exception:
                 head_sha = "unknown"
 
-    # Set metadata
+    # Set metadata.
     if isinstance(result, dict):
         meta = result.setdefault("meta", {})
         meta["head_sha"] = head_sha
@@ -174,32 +189,27 @@ def main():
     first_snap_buildings = count_snapshot_buildings(snapshots[0]) if snapshots else 0
     last_snap_buildings = count_snapshot_buildings(snapshots[-1]) if snapshots else 0
 
-    # 7) Check gzipped size and compact if > ~300 KB
+    # Compact snapshot encoding: drop non-existent file_states.
     gzipped_size = compute_gzipped_size(result)
-    if gzipped_size > 300 * 1024:
-        print(f"Gzipped size ({gzipped_size / 1024:.2f} KB) exceeds ~300 KB. Compacting snapshot encoding...")
+    if gzipped_size > MAX_GZIP_BYTES:
+        print(f"Gzipped size ({gzipped_size / 1024:.2f} KB) exceeds threshold. Compacting snapshots...")
         for snap in snapshots:
             if "file_states" in snap and isinstance(snap["file_states"], list):
                 snap["file_states"] = [
                     s for s in snap["file_states"]
                     if isinstance(s, dict) and s.get("exists")
                 ]
-        gzipped_size = compute_gzipped_size(result)
-        print(f"Compacted snapshot encoding; new gzipped size: {gzipped_size / 1024:.2f} KB")
 
-    # 8) Write frontend/src/data/hero-rich.json
-    out_path = REPO_ROOT / "frontend" / "src" / "data" / "hero-rich.json"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2)
+    # Write output and validate size.
+    raw_bytes, gz_bytes = serialize_and_check(result, out_path)
 
-    # 9) Print summary metrics
+    # Print summary metrics.
     print(f"file_count: {file_count}")
     print(f"edge_count: {edge_count}")
     print(f"snapshot_count: {snapshot_count}")
     print(f"first_snapshot_building_count: {first_snap_buildings}")
     print(f"last_snapshot_building_count: {last_snap_buildings}")
-    print(f"gzipped_size: {gzipped_size / 1024:.2f} KB ({gzipped_size} bytes)")
+    print(f"gzipped_size: {gz_bytes / 1024:.2f} KB ({gz_bytes} bytes)")
 
 
 if __name__ == "__main__":
